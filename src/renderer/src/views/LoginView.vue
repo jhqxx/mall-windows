@@ -7,7 +7,7 @@
       </header>
 
       <div class="cover-copy">
-        <h1>案件办理<br />桌面终端</h1>
+        <ParticleTitle :lines="['案件办理', '桌面终端']" />
       </div>
 
       <footer class="cover-foot mono">
@@ -61,6 +61,7 @@ import { Lock, User } from '@element-plus/icons-vue'
 import { setUser } from '@/stores/session'
 import logoLight from '@/assets/logo-light.png'
 import ParticleField from '@/components/ParticleField.vue'
+import ParticleTitle from '@/components/ParticleTitle.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -141,7 +142,7 @@ async function submit(): Promise<void> {
   content: '';
   position: absolute;
   left: clamp(1.5rem, 3vw, 2.5rem);
-  right: 0;
+  right: clamp(1.5rem, 3vw, 2.5rem);
   bottom: 4.75rem;
   height: 1px;
   background: var(--night-2);
@@ -158,13 +159,9 @@ async function submit(): Promise<void> {
   height: auto;
 }
 
-.cover-copy h1 {
-  margin: 0;
-  font-size: clamp(1.5rem, 2.2vw + 0.6rem, 2.25rem);
-  line-height: 1.35;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  color: #f4f8fb;
+.cover-copy {
+  display: flex;
+  justify-content: center;
 }
 
 .cover-foot {
