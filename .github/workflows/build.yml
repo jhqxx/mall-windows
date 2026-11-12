@@ -3,6 +3,8 @@ name: build
 on:
   workflow_dispatch:
   push:
+    branches:
+      - master
     tags:
       - 'v*'
 
@@ -40,16 +42,35 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
-      - name: Build macOS dmg
-        if: runner.os == 'macOS'
-        run: pnpm build:mac
+      - name: Compile renderer and main
+        run: pnpm build
 
-      - name: Build Windows exe
+      - name: Package macOS dmg
+        if: runner.os == 'macOS'
+        shell: bash
+        run: pnpm exec electron-builder --mac --arm64 --publish never > package.log 2>&1
+
+      - name: Package Windows exe
         if: runner.os == 'Windows'
-        run: pnpm build:win
+        shell: bash
+        run: pnpm exec electron-builder --win --x64 --publish never > package.log 2>&1
+
+      - name: Package log
+        if: always()
+        shell: bash
+        run: |
+          if [ -f package.log ]; then
+            {
+              echo '## 打包日志（末 150 行）'
+              echo ''
+              echo '```'
+              tail -n 150 package.log
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Collect macOS artifacts
-        if: runner.os == 'macOS'
+        if: runner.os == 'macOS' && success()
         uses: actions/upload-artifact@v4
         with:
           name: mac-arm64
@@ -59,7 +80,7 @@ jobs:
           if-no-files-found: error
 
       - name: Collect Windows artifacts
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && success()
         uses: actions/upload-artifact@v4
         with:
           name: win-x64
