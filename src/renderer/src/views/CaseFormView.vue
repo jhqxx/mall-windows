@@ -1,9 +1,9 @@
 <template>
   <div class="page">
     <h2 class="page-title">案件办理单</h2>
-    <p class="page-subtitle">带 <span class="required-mark">*</span> 为必填项，提交后可在「案件列表」查看。</p>
+    <p class="page-subtitle">带 <span class="required-mark">*</span> 为必填项</p>
 
-    <el-form ref="formRef" :model="form" :rules="rules" label-width="128px" label-position="right" size="default"
+    <el-form ref="formRef" :model="form" :rules="rules" label-width="8rem" label-position="right" size="default"
       @submit.prevent>
       <el-card class="section-card" shadow="never">
         <template #header><span class="section-title"><em class="section-no">01</em>案件信息</span></template>
@@ -137,16 +137,16 @@
         </div>
 
         <el-table :data="attachments" border stripe height="240" @selection-change="onSelectionChange">
-          <el-table-column type="selection" width="46" :selectable="() => true" />
-          <el-table-column prop="file_name" label="文件名" min-width="240" show-overflow-tooltip />
-          <el-table-column label="大小" width="110">
+          <el-table-column type="selection" width="2.875rem" :selectable="() => true" />
+          <el-table-column prop="file_name" label="文件名" min-width="15rem" show-overflow-tooltip />
+          <el-table-column label="大小" min-width="6.875rem">
             <template #default="{ row }">{{ formatSize(row.file_size) }}</template>
           </el-table-column>
-          <el-table-column prop="uploader" label="上传人" width="110" />
-          <el-table-column label="上传时间" width="170">
+          <el-table-column prop="uploader" label="上传人" min-width="6.875rem" />
+          <el-table-column label="上传时间" min-width="10.62rem">
             <template #default="{ row }">{{ formatTime(row.created_at) }}</template>
           </el-table-column>
-          <el-table-column label="操作" width="110" fixed="right">
+          <el-table-column label="操作" min-width="6.875rem" fixed="right">
             <template #default="{ row }">
               <el-button link type="danger" @click="removeOne(row)">删除</el-button>
             </template>
@@ -408,7 +408,7 @@ onMounted(loadPending)
 }
 
 .attach-count {
-  font-size: 12.5px;
+  font-size: 0.7812rem;
   letter-spacing: 0.02em;
   color: var(--ink-3);
 }
@@ -416,7 +416,7 @@ onMounted(loadPending)
 .section-no {
   font-family: var(--mono);
   font-style: normal;
-  font-size: 10px;
+  font-size: 0.625rem;
   font-weight: 400;
   letter-spacing: 0.06em;
   color: var(--ink-3);
@@ -424,31 +424,32 @@ onMounted(loadPending)
 }
 
 .attach-empty {
+  line-height: 1.5;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
-  padding: 30px 0 34px;
+  gap: 0.375rem;
+  padding: 1.875rem 0 2.125rem;
 }
 
 .attach-empty-tag {
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 0.625rem;
   letter-spacing: 0.18em;
   color: var(--ink-3);
   border: 1px solid var(--rule);
-  padding: 3px 7px;
+  padding: 3px 0.4375rem;
   background: var(--surface-alt);
 }
 
 .attach-empty p {
-  margin: 4px 0 0;
-  font-size: 13px;
+  margin: 0.25rem 0 0;
+  font-size: 0.8125rem;
   color: var(--ink-2);
 }
 
 .attach-empty small {
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--ink-3);
 }
 </style>

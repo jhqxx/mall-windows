@@ -12,7 +12,9 @@
 | --- | --- |
 | ![案件办理单](docs/screenshots/form.png) | ![操作日志](docs/screenshots/logs.png) |
 
-视觉体系见 [DESIGN.md](DESIGN.md)：港口作业台气质，深水蓝 + 钢灰 + 纸白，发丝线结构，等宽数字，无渐变无阴影。
+视觉体系见 [DESIGN.md](DESIGN.md)：港口作业台气质，深水蓝 + 钢灰 + 纸白，发丝线结构，等宽数字，无渐变无阴影。侧栏与登录页使用「蓝宝星球」官方字标（`src/renderer/src/assets/logo-*.png`）。
+
+**自适应**：根字号 `clamp()` + 全局 `rem`，侧栏 `clamp(11.5rem, 14vw, 15rem)`，栅格全部用 `fr` / 百分比；窗口缩小到 64rem 以下侧栏收成图标栏（品牌切 `logo-mark.png`），登录页在 60rem 以下改为顶部品牌条 + 居中表单卡，工作台读数在 46rem 以下折成两列。
 
 ## 技术栈
 
@@ -29,6 +31,15 @@
 1. **登录**：`admin / 123456`（首次启动自动种子，scrypt 加盐哈希，绝无明文/MD5）。密码错会记一条 `login_failed` 日志；勾选「记住我」后下次启动自动登录（钥匙串可用时用 `safeStorage` 加密，不可用时降级为 600 权限的令牌文件）。
 2. **案件录入**：六个分组卡片（案件信息 / 超期信息 / 办案人员 / 签批信息 / 其他信息 / 附件管理）+ 条件校验（超期必填原因、办结时间不晚于今天、审核时间不早于一年前）+ 原生附件多选上传/下载/批量删除。
 3. **操作日志**：时间倒序分页表格，动作筛选 + 关键词搜索 + 导出 CSV，成功/失败用不同颜色 tag 区分。
+
+数据库是 **SQLite**（Electron 45 内置的 `node:sqlite`，回退 better-sqlite3 原生模块），单文件存在应用数据目录：
+
+| 平台 | 数据库文件 | 附件目录 |
+| --- | --- | --- |
+| macOS | `~/Library/Application Support/MallDesktop/app.db` | 同目录 `attachments/` |
+| Windows | `%APPDATA%\MallDesktop\app.db` | 同目录 `attachments\` |
+
+表：`users` / `sessions` / `cases` / `attachments` / `audit_logs`。
 
 ## 开发
 

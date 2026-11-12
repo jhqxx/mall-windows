@@ -2,37 +2,23 @@
   <div class="login">
     <aside class="cover">
       <header class="cover-head">
-        <div class="mark" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
-        <div class="cover-id mono">MALL DESKTOP · PORT OPS</div>
+        <img class="logo" :src="logoLight" alt="蓝宝星球" />
       </header>
 
       <div class="cover-copy">
         <h1>案件办理<br />桌面终端</h1>
-        <p class="cover-sub">案件登记、附件归档、操作留痕，全部落在本机数据库。</p>
-        <ul class="cover-points">
-          <li>数据只写入本机 SQLite，不经过任何服务器</li>
-          <li>录入、附件、日志共用同一套案件编号</li>
-          <li>Windows 与 macOS 共用数据目录约定</li>
-        </ul>
-        <div class="cover-steps">
-          <div><span class="mono">01</span><strong>案件登记</strong></div>
-          <div><span class="mono">02</span><strong>附件归档</strong></div>
-          <div><span class="mono">03</span><strong>操作留痕</strong></div>
-        </div>
       </div>
 
       <footer class="cover-foot mono">
-        <span>31°14'N 121°29'E</span>
-        <span>TERMINAL 03 · v{{ version }}</span>
+        <span>v{{ version }}</span>
       </footer>
     </aside>
 
     <main class="pane">
-      <span class="pane-tag mono">LOCAL SESSION · NO NETWORK</span>
       <div class="pane-inner">
         <header class="pane-head">
           <h2>账号登录</h2>
-          <p class="tip">默认账号 admin / 123456（首次启动自动创建）</p>
+          <p class="tip mono">admin / 123456</p>
         </header>
 
         <el-form
@@ -56,13 +42,11 @@
               @keyup.enter="submit"
             />
           </el-form-item>
-          <el-checkbox v-model="form.remember">记住我（下次自动登录）</el-checkbox>
+          <el-checkbox v-model="form.remember">记住我</el-checkbox>
           <el-button type="primary" class="login-button" :loading="loading" @click="submit">
             登录
           </el-button>
         </el-form>
-
-        <p class="meta mono">ELECTRON {{ electron }} · NODE {{ node }}</p>
       </div>
     </main>
   </div>
@@ -74,14 +58,13 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { Lock, User } from '@element-plus/icons-vue'
 import { setUser } from '@/stores/session'
+import logoLight from '@/assets/logo-light.png'
 
 const router = useRouter()
 const route = useRoute()
 const formRef = ref<FormInstance>()
 const loading = ref(false)
 const version = ref('0.1.0')
-const electron = ref('-')
-const node = ref('-')
 
 const form = reactive({ username: 'admin', password: '123456', remember: false })
 
@@ -94,8 +77,6 @@ onMounted(async () => {
   const meta = await window.api.app.meta()
   if (meta?.ok) {
     version.value = meta.version
-    electron.value = meta.electron
-    node.value = meta.node
   }
   const auto = await window.api.auth.auto()
   if (auto?.ok && auto.user) {
@@ -138,198 +119,83 @@ async function submit(): Promise<void> {
 
 .cover {
   position: relative;
-  width: 46%;
-  min-width: 380px;
+  flex: 0 0 42%;
+  max-width: 34rem;
   background: var(--night);
   color: var(--night-text);
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  padding: 28px 34px 22px;
+  padding: clamp(1.5rem, 3vw, 2.5rem);
   overflow: hidden;
 }
 
 .cover::before {
   content: '';
   position: absolute;
-  left: 0;
+  left: clamp(1.5rem, 3vw, 2.5rem);
   right: 0;
-  bottom: 54px;
+  bottom: 4.75rem;
   height: 1px;
-  background: rgba(169, 183, 198, 0.16);
-}
-
-.cover::after {
-  content: '';
-  position: absolute;
-  left: 34px;
-  bottom: 53px;
-  width: 96px;
-  height: 2px;
-  background: var(--harbor);
-}
-
-.cover-head,
-.cover-copy,
-.cover-foot {
-  position: relative;
+  background: var(--night-2);
 }
 
 .cover-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
 }
 
-.mark {
-  width: 30px;
-  height: 30px;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: 1fr 1fr;
-  gap: 3px;
-  padding: 6px;
-  border: 1px solid rgba(169, 183, 198, 0.32);
-  border-radius: 2px;
-  background: rgba(15, 111, 181, 0.14);
-}
-
-.mark i {
+.logo {
   display: block;
-  background: #6fb3e0;
-  border-radius: 1px;
+  width: clamp(8rem, 10vw, 10.5rem);
+  height: auto;
 }
 
-.mark i:nth-child(1) {
-  background: #8fc7e8;
-}
-
-.mark i:nth-child(4) {
-  background: rgba(169, 183, 198, 0.45);
-}
-
-.cover-id {
-  font-size: 9px;
-  letter-spacing: 0.16em;
-  color: var(--night-muted);
-}
-
-.cover-copy {
-  max-width: 430px;
-}
-
-.cover h1 {
-  margin: 0 0 16px;
-  font-size: 33px;
-  font-weight: 600;
-  line-height: 1.28;
-  letter-spacing: -0.01em;
-  color: #f2f6fa;
-}
-
-.cover-sub {
-  margin: 0 0 26px;
-  max-width: 34ch;
-  font-size: 13px;
-  line-height: 1.8;
-  color: var(--night-text);
-}
-
-.cover-points {
+.cover-copy h1 {
   margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  font-size: 12.5px;
-  line-height: 1.7;
-  color: var(--night-text);
-}
-
-.cover-points li {
-  position: relative;
-  padding-left: 16px;
-}
-
-.cover-points li::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 8px;
-  width: 5px;
-  height: 2px;
-  background: #6fb3e0;
-}
-
-.cover-steps {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
-  margin-top: 34px;
-}
-
-.cover-steps div {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding-top: 10px;
-  border-top: 1px solid rgba(169, 183, 198, 0.18);
-}
-
-.cover-steps span {
-  font-size: 10px;
-  letter-spacing: 0.1em;
-  color: #6fb3e0;
-}
-
-.cover-steps strong {
-  font-size: 12.5px;
-  font-weight: 500;
-  color: #dfe8ef;
+  font-size: clamp(1.5rem, 2.2vw + 0.6rem, 2.25rem);
+  line-height: 1.35;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: #f4f8fb;
 }
 
 .cover-foot {
   display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  font-size: 9px;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  padding-top: 0.875rem;
+  border-top: 1px solid transparent;
+  font-size: 0.625rem;
   letter-spacing: 0.14em;
   color: var(--night-muted);
-  border-top: 1px solid rgba(169, 183, 198, 0.14);
-  padding-top: 14px;
-}
-
-.pane-tag {
-  position: absolute;
-  top: 26px;
-  right: 30px;
-  font-size: 9.5px;
-  letter-spacing: 0.16em;
-  color: var(--ink-3);
 }
 
 .pane {
   flex: 1;
+  min-width: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 40px;
-  background: var(--surface);
+  padding: 2rem clamp(1.25rem, 4vw, 4rem);
 }
 
 .pane-inner {
-  width: 340px;
+  width: min(24rem, 100%);
+  padding: clamp(1.5rem, 2.4vw, 2.25rem);
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-lg);
+  box-shadow: 0 0.5rem 1.5rem rgba(16, 22, 29, 0.05);
 }
 
 .pane-head {
-  margin-bottom: 24px;
+  margin-bottom: 1.5rem;
 }
 
 .pane-head h2 {
-  margin: 0 0 8px;
-  font-size: 23px;
+  margin: 0 0 0.375rem;
+  font-size: 1.375rem;
   font-weight: 600;
   letter-spacing: -0.01em;
   color: var(--ink);
@@ -337,24 +203,44 @@ async function submit(): Promise<void> {
 
 .tip {
   margin: 0;
-  font-size: 12px;
+  font-size: 0.6875rem;
+  letter-spacing: 0.08em;
   color: var(--ink-3);
 }
 
 .login-button {
   width: 100%;
-  margin-top: 18px;
-  height: 42px;
-  font-size: 13.5px;
-  letter-spacing: 0.08em;
+  margin-top: 1.125rem;
 }
 
-.meta {
-  margin: 26px 0 0;
-  font-size: 9.5px;
-  letter-spacing: 0.1em;
-  color: var(--ink-3);
-  border-top: 1px solid var(--rule);
-  padding-top: 12px;
+@media (max-width: 60rem) {
+  .login {
+    flex-direction: column;
+  }
+
+  .cover {
+    flex: none;
+    max-width: none;
+    align-items: flex-start;
+    padding: 1.25rem 1.5rem;
+  }
+
+  .cover::before,
+  .cover-foot {
+    display: none;
+  }
+
+  .cover-copy {
+    display: none;
+  }
+
+  .pane {
+    align-items: flex-start;
+    padding-top: 2rem;
+  }
+
+  .pane-logo {
+    display: none;
+  }
 }
 </style>

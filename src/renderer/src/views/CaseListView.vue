@@ -1,12 +1,11 @@
 <template>
   <div class="page">
     <h2 class="page-title">案件列表</h2>
-    <p class="page-subtitle">共 {{ total }} 条记录，按创建时间倒序。</p>
 
     <el-card class="section-card" shadow="never">
       <div class="table-toolbar">
         <div class="toolbar-left">
-          <el-input v-model="keyword" placeholder="案件编号 / 类型 / 主办人 / 备注" clearable style="width: 280px"
+          <el-input v-model="keyword" placeholder="案件编号 / 类型 / 主办人 / 备注" clearable style="width: 17.5rem"
             :prefix-icon="Search" @keyup.enter="reload" @clear="reload" />
           <el-button type="primary" :icon="Search" @click="reload">查询</el-button>
         </div>
@@ -17,35 +16,35 @@
       </div>
 
       <el-table v-loading="loading" :data="rows" border stripe>
-        <el-table-column prop="case_no" label="案件编号" width="176" class-name="cell-mono" />
-        <el-table-column prop="case_type" label="案件类型" width="100" />
-        <el-table-column label="是否办结" width="92" align="center">
+        <el-table-column prop="case_no" label="案件编号" min-width="11rem" class-name="cell-mono" />
+        <el-table-column prop="case_type" label="案件类型" min-width="6rem" />
+        <el-table-column label="是否办结" min-width="5.5rem" align="center">
           <template #default="{ row }">
             <el-tag :type="row.is_closed ? 'success' : 'info'" effect="plain" size="small">
               {{ row.is_closed ? '已办结' : '未办结' }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="closed_at" label="办结时间" width="104" class-name="cell-mono">
+        <el-table-column prop="closed_at" label="办结时间" min-width="6.5rem" class-name="cell-mono">
           <template #default="{ row }">{{ row.closed_at || '-' }}</template>
         </el-table-column>
-        <el-table-column label="是否超期" width="92" align="center">
+        <el-table-column label="是否超期" min-width="5.5rem" align="center">
           <template #default="{ row }">
             <el-tag :type="row.is_overdue ? 'danger' : 'success'" effect="plain" size="small">
               {{ row.is_overdue ? '超期' : '正常' }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="owner" label="主办人" width="92">
+        <el-table-column prop="owner" label="主办人" min-width="5.5rem">
           <template #default="{ row }">{{ row.owner || '-' }}</template>
         </el-table-column>
-        <el-table-column prop="reviewer" label="审核人" width="92">
+        <el-table-column prop="reviewer" label="审核人" min-width="5.5rem">
           <template #default="{ row }">{{ row.reviewer || '-' }}</template>
         </el-table-column>
-        <el-table-column prop="approval_status" label="签批情况" min-width="110">
+        <el-table-column prop="approval_status" label="签批情况" min-width="7rem">
           <template #default="{ row }">{{ row.approval_status || '-' }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="122" fixed="right" class-name="cell-actions">
+        <el-table-column label="操作" min-width="7.5rem" fixed="right" class-name="cell-actions">
           <template #default="{ row }">
             <el-button link type="primary" @click="openDetail(row)">查看</el-button>
             <el-button link type="danger" @click="remove(row)">删除</el-button>
@@ -63,7 +62,7 @@
       </div>
     </el-card>
 
-    <el-dialog v-model="detailVisible" title="案件详情" width="760px">
+    <el-dialog v-model="detailVisible" title="案件详情" width="48rem">
       <template v-if="detail">
         <el-descriptions :column="2" border size="small">
           <el-descriptions-item label="案件编号">{{ detail.case_no }}</el-descriptions-item>
@@ -184,23 +183,23 @@ onMounted(load)
 .pager {
   display: flex;
   justify-content: flex-end;
-  margin-top: 14px;
+  margin-top: 0.875rem;
 }
 
 :deep(.cell-mono) {
   font-family: var(--mono);
-  font-size: 11.5px;
+  font-size: 0.7188rem;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
 :deep(.cell-actions .el-button + .el-button) {
-  margin-left: 6px;
+  margin-left: 0.375rem;
 }
 
 .attach-title {
-  margin: 18px 0 10px;
-  font-size: 13.5px;
+  margin: 1.125rem 0 0.625rem;
+  font-size: 0.8438rem;
   font-weight: 600;
   color: var(--ink);
 }

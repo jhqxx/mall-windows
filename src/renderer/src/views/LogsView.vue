@@ -1,15 +1,14 @@
 <template>
   <div class="page">
     <h2 class="page-title">操作日志</h2>
-    <p class="page-subtitle">记录登录、案件、附件、导出等全部操作，倒序排列。</p>
 
     <el-card class="section-card" shadow="never">
       <div class="table-toolbar">
         <div class="toolbar-left">
-          <el-select v-model="action" placeholder="全部动作" clearable style="width: 160px" @change="reload">
+          <el-select v-model="action" placeholder="全部动作" clearable style="width: 10rem" @change="reload">
             <el-option v-for="item in actions" :key="item.value" :label="item.label" :value="item.value" />
           </el-select>
-          <el-input v-model="keyword" placeholder="用户 / 详情 / 对象ID" clearable style="width: 240px" :prefix-icon="Search"
+          <el-input v-model="keyword" placeholder="用户 / 详情 / 对象ID" clearable style="width: 15rem" :prefix-icon="Search"
             @keyup.enter="reload" @clear="reload" />
           <el-button type="primary" :icon="Search" @click="reload">查询</el-button>
         </div>
@@ -20,27 +19,27 @@
       </div>
 
       <el-table v-loading="loading" :data="rows" border stripe>
-        <el-table-column label="时间" width="168" class-name="cell-mono">
+        <el-table-column label="时间" min-width="10.5rem" class-name="cell-mono">
           <template #default="{ row }">{{ formatTime(row.created_at) }}</template>
         </el-table-column>
-        <el-table-column prop="username" label="用户" width="90">
+        <el-table-column prop="username" label="用户" min-width="5.625rem">
           <template #default="{ row }">{{ row.username || '-' }}</template>
         </el-table-column>
-        <el-table-column label="动作" width="140">
+        <el-table-column label="动作" min-width="8.75rem">
           <template #default="{ row }">
             <span class="action-text">{{ actionLabel(row.action) }}</span>
             <div class="action-code">{{ row.action }}</div>
           </template>
         </el-table-column>
-        <el-table-column label="对象" width="116" class-name="cell-mono">
+        <el-table-column label="对象" min-width="7.25rem" class-name="cell-mono">
           <template #default="{ row }">
             <span v-if="row.target_type">{{ row.target_type }}#{{ row.target_id }}</span>
             <span v-else>-</span>
           </template>
         </el-table-column>
-        <el-table-column prop="detail" label="详情" min-width="232" show-overflow-tooltip />
-        <el-table-column prop="machine" label="机器名" width="130" show-overflow-tooltip />
-        <el-table-column label="结果" width="80" align="center">
+        <el-table-column prop="detail" label="详情" min-min-width="14.5rem" show-overflow-tooltip />
+        <el-table-column prop="machine" label="机器名" min-width="8.125rem" show-overflow-tooltip />
+        <el-table-column label="结果" min-width="5rem" align="center">
           <template #default="{ row }">
             <el-tag :type="row.result === 'success' ? 'success' : 'danger'" effect="plain" size="small">
               {{ row.result === 'success' ? '成功' : '失败' }}
@@ -143,20 +142,20 @@ onMounted(async () => {
 <style scoped>
 :deep(.cell-mono) {
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
 .action-text {
-  font-size: 12.5px;
+  font-size: 0.7812rem;
   color: var(--ink);
 }
 
 .action-code {
   margin-top: 2px;
   font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: 0.6562rem;
   letter-spacing: 0.02em;
   color: var(--ink-3);
 }
@@ -164,6 +163,6 @@ onMounted(async () => {
 .pager {
   display: flex;
   justify-content: flex-end;
-  margin-top: 14px;
+  margin-top: 0.875rem;
 }
 </style>

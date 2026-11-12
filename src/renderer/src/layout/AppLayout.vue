@@ -2,11 +2,8 @@
   <el-container class="shell">
     <aside class="sidebar">
       <div class="brand">
-        <div class="mark" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
-        <div class="brand-text">
-          <strong>Mall Desktop</strong>
-          <span>PORT OPS · 案件办理</span>
-        </div>
+        <img class="logo logo-full" :src="logoLight" alt="蓝宝星球" />
+        <img class="logo logo-mark" :src="logoMark" alt="蓝宝星球" />
       </div>
 
       <nav class="nav" aria-label="主导航">
@@ -16,22 +13,23 @@
           :to="item.path"
           class="nav-item"
           :class="{ active: activePath === item.path }"
+          :title="item.label"
         >
           <el-icon class="nav-icon"><component :is="item.icon" /></el-icon>
-          <span>{{ item.label }}</span>
+          <span class="nav-label">{{ item.label }}</span>
         </RouterLink>
       </nav>
 
       <div class="sidebar-foot mono">
         <span>v{{ version }}</span>
-        <span>{{ platformLabel }}</span>
+        <span class="foot-platform">{{ platformLabel }}</span>
       </div>
     </aside>
 
-    <el-container>
+    <el-container class="body">
       <el-header class="topbar">
         <div class="crumb">
-          <span class="crumb-app mono">MALL DESKTOP</span>
+          <span class="crumb-app mono">LANBAOSTAR</span>
           <span class="crumb-sep">/</span>
           <span class="crumb-current">{{ currentTitle }}</span>
         </div>
@@ -66,6 +64,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowDown, DocumentAdd, Files, Odometer, Tickets } from '@element-plus/icons-vue'
 import { setUser, session } from '@/stores/session'
+import logoLight from '@/assets/logo-light.png'
+import logoMark from '@/assets/logo-mark.png'
 
 const route = useRoute()
 const router = useRouter()
@@ -121,164 +121,116 @@ async function handleCommand(command: string): Promise<void> {
 }
 
 .sidebar {
-  width: 224px;
+  width: clamp(11.5rem, 14vw, 15rem);
   flex: none;
   display: flex;
   flex-direction: column;
   background: var(--night);
-  border-right: 1px solid var(--night-2);
   color: var(--night-text);
 }
 
 .brand {
   display: flex;
   align-items: center;
-  gap: 11px;
-  padding: 18px 18px 16px;
-  border-bottom: 1px solid rgba(169, 183, 198, 0.12);
+  padding: 1.125rem;
+  border-bottom: 1px solid var(--night-2);
 }
 
-.mark {
-  width: 30px;
-  height: 30px;
-  flex: none;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: 1fr 1fr;
-  gap: 3px;
-  padding: 6px;
-  border: 1px solid rgba(169, 183, 198, 0.32);
-  border-radius: 2px;
-  background: rgba(15, 111, 181, 0.14);
-}
-
-.mark i {
+.logo {
   display: block;
-  background: #6fb3e0;
-  border-radius: 1px;
+  width: 8.75rem;
+  max-width: 100%;
+  height: auto;
+  object-fit: contain;
 }
 
-.mark i:nth-child(1) {
-  background: #8fc7e8;
-}
-
-.mark i:nth-child(4) {
-  background: rgba(169, 183, 198, 0.45);
-}
-
-.brand-text {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  min-width: 0;
-}
-
-.brand-text strong {
-  font-size: 13.5px;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  color: #f2f6fa;
-}
-
-.brand-text span {
-  font-family: var(--mono);
-  font-size: 8.5px;
-  letter-spacing: 0.12em;
-  color: var(--night-muted);
-  white-space: nowrap;
+.logo-mark {
+  display: none;
+  width: 1.75rem;
 }
 
 .nav {
   flex: 1;
-  padding: 12px 8px;
+  padding: 0.5rem 0.5rem 1rem;
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 0.125rem;
+  overflow-y: auto;
 }
 
 .nav-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  height: 38px;
-  padding: 0 10px;
-  border-radius: 2px;
+  gap: 0.625rem;
+  min-height: 2.375rem;
+  padding: 0 0.625rem;
+  border-radius: var(--r-md);
   color: var(--night-text);
-  font-size: 13px;
+  font-size: 0.8125rem;
   text-decoration: none;
   position: relative;
   transition: color 0.16s ease, background-color 0.16s ease;
 }
 
-.nav-item::before {
-  content: '';
-  width: 3px;
-  height: 3px;
-  background: #6fb3e0;
-  opacity: 0;
-  transition: opacity 0.16s ease;
-}
-
 .nav-item:hover {
-  color: #e8eef4;
-  background: rgba(169, 183, 198, 0.08);
+  color: #eef3f7;
+  background: var(--night-2);
 }
 
 .nav-item.active {
   color: #ffffff;
-  background: rgba(15, 111, 181, 0.22);
-  box-shadow: inset 0 0 0 1px rgba(111, 179, 224, 0.18);
-}
-
-.nav-item.active::before {
-  opacity: 1;
+  background: var(--night-3);
 }
 
 .nav-icon {
-  font-size: 15px;
-  opacity: 0.9;
+  font-size: 1rem;
+  opacity: 0.92;
 }
 
 .sidebar-foot {
   display: flex;
   justify-content: space-between;
-  gap: 8px;
-  padding: 10px 18px 12px;
-  font-size: 10px;
+  gap: 0.5rem;
+  padding: 0.625rem 1.125rem 0.75rem;
+  font-size: 0.625rem;
   letter-spacing: 0.06em;
   color: var(--night-muted);
-  border-top: 1px solid rgba(169, 183, 198, 0.12);
+  border-top: 1px solid var(--night-2);
+}
+
+.body {
+  min-width: 0;
 }
 
 .topbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 52px;
+  height: 3.25rem;
   background: var(--surface);
   border-bottom: 1px solid var(--rule);
-  padding: 0 24px;
+  padding: 0 clamp(1rem, 2vw, 1.75rem);
 }
 
 .crumb {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 0.625rem;
 }
 
 .crumb-app {
-  font-size: 10px;
+  font-size: 0.625rem;
   letter-spacing: 0.14em;
   color: var(--ink-3);
 }
 
 .crumb-sep {
   color: var(--rule-2);
-  font-size: 11px;
+  font-size: 0.6875rem;
 }
 
 .crumb-current {
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 500;
   color: var(--ink);
 }
@@ -286,10 +238,10 @@ async function handleCommand(command: string): Promise<void> {
 .user-chip {
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: 0.5625rem;
   cursor: pointer;
-  padding: 4px 6px;
-  border-radius: 2px;
+  padding: 0.25rem 0.375rem;
+  border-radius: var(--r-sm);
   transition: background-color 0.16s ease;
 }
 
@@ -298,23 +250,23 @@ async function handleCommand(command: string): Promise<void> {
 }
 
 .avatar {
-  width: 26px;
-  height: 26px;
+  width: 1.625rem;
+  height: 1.625rem;
   display: grid;
   place-items: center;
   background: var(--night);
   color: #f2f6fa;
-  font-size: 12px;
-  border-radius: 2px;
+  font-size: 0.75rem;
+  border-radius: 0.375rem;
 }
 
 .user-name {
-  font-size: 12.5px;
+  font-size: 0.8125rem;
   color: var(--ink-2);
 }
 
 .chev {
-  font-size: 11px;
+  font-size: 0.6875rem;
   color: var(--ink-3);
 }
 
@@ -322,5 +274,36 @@ async function handleCommand(command: string): Promise<void> {
   background: var(--page);
   padding: 0;
   overflow-y: auto;
+}
+
+@media (max-width: 64rem) {
+  .sidebar {
+    width: 4.25rem;
+  }
+
+  .brand {
+    justify-content: center;
+    padding: 1rem 0.5rem;
+  }
+
+  .logo-full {
+    display: none;
+  }
+
+  .logo-mark {
+    display: block;
+    width: 1.75rem;
+  }
+
+  .nav-item {
+    justify-content: center;
+    padding: 0 0;
+  }
+
+  .nav-label,
+  .sidebar-foot,
+  .user-name {
+    display: none;
+  }
 }
 </style>

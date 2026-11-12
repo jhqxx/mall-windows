@@ -21,8 +21,8 @@ function createWindow(): void {
   mainWindow = new BrowserWindow({
     width: 1320,
     height: 860,
-    minWidth: 1100,
-    minHeight: 720,
+    minWidth: 900,
+    minHeight: 600,
     show: false,
     title: 'Mall Desktop',
     autoHideMenuBar: true,
