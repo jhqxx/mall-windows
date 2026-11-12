@@ -27,7 +27,7 @@ const props = withDefaults(
     lines: string[]
     size?: string
   }>(),
-  { size: 'clamp(1.75rem, 2.6vw + 0.7rem, 2.75rem)' }
+  { size: 'clamp(2rem, 2.4vw + 1.2rem, 3rem)' }
 )
 
 const canvasRef = ref<HTMLCanvasElement>()
@@ -92,8 +92,8 @@ function sample(): void {
         hy: y / scale + (Math.random() - 0.5) * 0.9,
         x: x / scale,
         y: y / scale,
-        amp: 0.25 + Math.random() * 0.55,
-        speed: 0.5 + Math.random() * 0.9,
+        amp: Math.random() < 0.08 ? 3 + Math.random() * 5 : 0.7 + Math.random() * 1.1,
+        speed: 0.35 + Math.random() * 0.85,
         phase: Math.random() * Math.PI * 2,
         r: 0.5 + Math.random() * 0.4,
         tone: hue > 0.93 ? TONES[2] : hue > 0.6 ? TONES[1] : TONES[0]
@@ -117,8 +117,8 @@ function drawFrame(time: number): void {
   for (const grain of grains) {
     const tx = grain.hx + Math.sin(t * grain.speed + grain.phase) * grain.amp
     const ty = grain.hy + Math.cos(t * grain.speed * 0.8 + grain.phase) * grain.amp
-    grain.x += (tx - grain.x) * 0.22
-    grain.y += (ty - grain.y) * 0.22
+    grain.x += (tx - grain.x) * 0.12
+    grain.y += (ty - grain.y) * 0.12
     ctx.fillStyle = grain.tone
     ctx.beginPath()
     ctx.arc(grain.x, grain.y, grain.r, 0, Math.PI * 2)
@@ -153,7 +153,7 @@ onBeforeUnmount(() => {
 .particle-title {
   position: relative;
   display: inline-block;
-  padding: 0.5rem 1rem;
+  padding: 1.5rem 2.5rem;
 }
 
 .text {
@@ -175,7 +175,7 @@ onBeforeUnmount(() => {
 
 .canvas {
   position: absolute;
-  inset: 0.5rem 1rem;
+  inset: 1.5rem 2.5rem;
   pointer-events: none;
 }
 </style>

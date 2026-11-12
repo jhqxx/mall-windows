@@ -19,27 +19,27 @@
       </div>
 
       <el-table v-loading="loading" :data="rows" border stripe>
-        <el-table-column label="时间" min-width="10.5rem" class-name="cell-mono">
+        <el-table-column label="时间" min-width="168" class-name="cell-mono">
           <template #default="{ row }">{{ formatTime(row.created_at) }}</template>
         </el-table-column>
-        <el-table-column prop="username" label="用户" min-width="5.625rem">
+        <el-table-column prop="username" label="用户" min-width="88">
           <template #default="{ row }">{{ row.username || '-' }}</template>
         </el-table-column>
-        <el-table-column label="动作" min-width="8.75rem">
+        <el-table-column label="动作" min-width="136">
           <template #default="{ row }">
             <span class="action-text">{{ actionLabel(row.action) }}</span>
             <div class="action-code">{{ row.action }}</div>
           </template>
         </el-table-column>
-        <el-table-column label="对象" min-width="7.25rem" class-name="cell-mono">
+        <el-table-column label="对象" min-width="120" class-name="cell-mono">
           <template #default="{ row }">
             <span v-if="row.target_type">{{ row.target_type }}#{{ row.target_id }}</span>
             <span v-else>-</span>
           </template>
         </el-table-column>
-        <el-table-column prop="detail" label="详情" min-min-width="14.5rem" show-overflow-tooltip />
-        <el-table-column prop="machine" label="机器名" min-width="8.125rem" show-overflow-tooltip />
-        <el-table-column label="结果" min-width="5rem" align="center">
+        <el-table-column prop="detail" label="详情" min-width="240" show-overflow-tooltip />
+        <el-table-column prop="machine" label="机器名" min-width="132" show-overflow-tooltip />
+        <el-table-column label="结果" min-width="84" align="center">
           <template #default="{ row }">
             <el-tag :type="row.result === 'success' ? 'success' : 'danger'" effect="plain" size="small">
               {{ row.result === 'success' ? '成功' : '失败' }}

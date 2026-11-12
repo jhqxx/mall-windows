@@ -65,6 +65,7 @@
 - 页面：`padding: 1.5rem clamp(1.25rem, 2.2vw, 2.25rem) 2.5rem`。
 - 工作台读数：`grid-template-columns: repeat(3, minmax(0,1fr)) minmax(0,1.1fr)`，整体随宽度等比拉伸。
 - 双栏面板：`minmax(0,1.5fr) minmax(0,1fr)`，间距 `1rem`。
+- 表格列宽是唯一允许写固定值的地方，而且必须写成数字（Element Plus 对 `width`/`min-width` 做 `parseInt`，传 `"10.5rem"` 会被解析成 10px，整张表被压成一条缝）；列宽不影响缩放，外层容器与栅格负责自适应。
 - 表单：`el-row`/`el-col` 百分比栅格，`label-width: 8rem`；附件表列宽用 `min-width` 的 rem 值，窄屏在卡片内横向滚动而不挤压文字。
 - 表情表：列宽全部 `min-width`，表格吃满容器宽度。
 
@@ -92,7 +93,7 @@
 三处，都有明确用途：
 
 1. 导航项与面板行在 160ms 内完成底色/颜色变化，行尾箭头 hover 右移 0.1875rem——回答「我在哪、能不能点」。
-2. 登录页标题「案件办理 / 桌面终端」本身就是粒子构成（`src/renderer/src/components/ParticleTitle.vue`）：把两行标题在离屏 canvas 上按真实字号绘制、逐像素采样（2px 步长），在采样点上生成粒子，粒子绕各自原点做 0.25–0.8px 的正弦浮动，字因此会「呼吸」但始终可读。真实文字保留在 DOM 里（`opacity: 0`），读屏与自动化仍能取到标题；采样与容器尺寸绑定，`ResizeObserver` 触发重采样，窗口缩放不会糊。标题在封面内水平、垂直居中，与右侧表单卡形成对称。
+2. 登录页标题「案件办理 / 桌面终端」本身就是粒子构成（`src/renderer/src/components/ParticleTitle.vue`）：把两行标题在离屏 canvas 上按真实字号（`clamp(2rem, 2.4vw + 1.2rem, 3rem)`）绘制、逐像素采样（2px 步长），在采样点上生成粒子，粒子绕各自原点做 0.7–1.8px 的正弦浮动（8% 的粒子给到 3–8px，负责「散」的观感），字因此会「呼吸」但始终可读。真实文字保留在 DOM 里（`opacity: 0`），读屏与自动化仍能取到标题；采样与容器尺寸绑定，`ResizeObserver` 触发重采样，窗口缩放不会糊。标题在封面内水平、垂直居中，与右侧表单卡形成对称。
 3. 封面背景的粒子星图（`src/renderer/src/components/ParticleField.vue`）：44 个缓慢漂移的点 + 140px 内的连边，用 canvas 绘制，点 `rgba(206,226,241,.62)`、线 `rgba(122,176,214)` 到 0.2 不透明度；密度与亮度都压在同层文字的对比之下，只做「港口夜航」的气氛，不与表单抢注意力。窗口尺寸变化时按 `ResizeObserver` 重算并乘 `devicePixelRatio`，且封面上所有内容都在粒子之上（`z-index: 1`）。
 4. 运行时 `prefers-reduced-motion: reduce` 时，前两处全部降为 0ms，两处粒子都只画静止的一帧。
 

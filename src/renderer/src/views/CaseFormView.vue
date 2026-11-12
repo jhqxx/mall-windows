@@ -137,16 +137,16 @@
         </div>
 
         <el-table :data="attachments" border stripe height="240" @selection-change="onSelectionChange">
-          <el-table-column type="selection" width="2.875rem" :selectable="() => true" />
-          <el-table-column prop="file_name" label="文件名" min-width="15rem" show-overflow-tooltip />
-          <el-table-column label="大小" min-width="6.875rem">
+          <el-table-column type="selection" width="46" :selectable="() => true" />
+          <el-table-column prop="file_name" label="文件名" min-width="260" show-overflow-tooltip />
+          <el-table-column label="大小" min-width="112">
             <template #default="{ row }">{{ formatSize(row.file_size) }}</template>
           </el-table-column>
-          <el-table-column prop="uploader" label="上传人" min-width="6.875rem" />
-          <el-table-column label="上传时间" min-width="10.62rem">
+          <el-table-column prop="uploader" label="上传人" min-width="112" />
+          <el-table-column label="上传时间" min-width="168">
             <template #default="{ row }">{{ formatTime(row.created_at) }}</template>
           </el-table-column>
-          <el-table-column label="操作" min-width="6.875rem" fixed="right">
+          <el-table-column label="操作" min-width="112" fixed="right">
             <template #default="{ row }">
               <el-button link type="danger" @click="removeOne(row)">删除</el-button>
             </template>

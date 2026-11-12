@@ -16,35 +16,35 @@
       </div>
 
       <el-table v-loading="loading" :data="rows" border stripe>
-        <el-table-column prop="case_no" label="案件编号" min-width="11rem" class-name="cell-mono" />
-        <el-table-column prop="case_type" label="案件类型" min-width="6rem" />
-        <el-table-column label="是否办结" min-width="5.5rem" align="center">
+        <el-table-column prop="case_no" label="案件编号" min-width="176" class-name="cell-mono" />
+        <el-table-column prop="case_type" label="案件类型" min-width="104" />
+        <el-table-column label="是否办结" min-width="92" align="center">
           <template #default="{ row }">
             <el-tag :type="row.is_closed ? 'success' : 'info'" effect="plain" size="small">
               {{ row.is_closed ? '已办结' : '未办结' }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="closed_at" label="办结时间" min-width="6.5rem" class-name="cell-mono">
+        <el-table-column prop="closed_at" label="办结时间" min-width="108" class-name="cell-mono">
           <template #default="{ row }">{{ row.closed_at || '-' }}</template>
         </el-table-column>
-        <el-table-column label="是否超期" min-width="5.5rem" align="center">
+        <el-table-column label="是否超期" min-width="92" align="center">
           <template #default="{ row }">
             <el-tag :type="row.is_overdue ? 'danger' : 'success'" effect="plain" size="small">
               {{ row.is_overdue ? '超期' : '正常' }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="owner" label="主办人" min-width="5.5rem">
+        <el-table-column prop="owner" label="主办人" min-width="92">
           <template #default="{ row }">{{ row.owner || '-' }}</template>
         </el-table-column>
-        <el-table-column prop="reviewer" label="审核人" min-width="5.5rem">
+        <el-table-column prop="reviewer" label="审核人" min-width="92">
           <template #default="{ row }">{{ row.reviewer || '-' }}</template>
         </el-table-column>
-        <el-table-column prop="approval_status" label="签批情况" min-width="7rem">
+        <el-table-column prop="approval_status" label="签批情况" min-width="132">
           <template #default="{ row }">{{ row.approval_status || '-' }}</template>
         </el-table-column>
-        <el-table-column label="操作" min-width="7.5rem" fixed="right" class-name="cell-actions">
+        <el-table-column label="操作" min-width="128" fixed="right" class-name="cell-actions">
           <template #default="{ row }">
             <el-button link type="primary" @click="openDetail(row)">查看</el-button>
             <el-button link type="danger" @click="remove(row)">删除</el-button>
