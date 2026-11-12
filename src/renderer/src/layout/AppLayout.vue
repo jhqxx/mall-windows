@@ -36,10 +36,10 @@
         <el-dropdown trigger="click" @command="handleCommand">
           <span class="user-chip">
             <span class="avatar">{{ initial }}</span>
-            <span class="user-name">{{ session.user?.displayName }}</span>
-            <el-tag size="small" effect="plain" type="info">
-              {{ session.user?.role === 'admin' ? '管理员' : session.user?.role }}
-            </el-tag>
+            <span class="user-id">
+              <span class="user-name">{{ session.user?.displayName }}</span>
+              <span class="user-role mono">{{ session.user?.username }}</span>
+            </span>
             <el-icon class="chev"><ArrowDown /></el-icon>
           </span>
           <template #dropdown>
@@ -162,11 +162,11 @@ async function handleCommand(command: string): Promise<void> {
   display: flex;
   align-items: center;
   gap: 0.625rem;
-  min-height: 2.375rem;
-  padding: 0 0.625rem;
+  min-height: 2.75rem;
+  padding: 0 0.75rem;
   border-radius: var(--r-md);
   color: var(--night-text);
-  font-size: 0.8125rem;
+  font-size: 0.9375rem;
   text-decoration: none;
   position: relative;
   transition: color 0.16s ease, background-color 0.16s ease;
@@ -183,7 +183,7 @@ async function handleCommand(command: string): Promise<void> {
 }
 
 .nav-icon {
-  font-size: 1rem;
+  font-size: 1.0625rem;
   opacity: 0.92;
 }
 
@@ -250,19 +250,33 @@ async function handleCommand(command: string): Promise<void> {
 }
 
 .avatar {
-  width: 1.625rem;
-  height: 1.625rem;
+  width: 1.875rem;
+  height: 1.875rem;
   display: grid;
   place-items: center;
-  background: var(--night);
-  color: #f2f6fa;
+  background: var(--harbor);
+  color: #fff;
   font-size: 0.75rem;
-  border-radius: 0.375rem;
+  font-weight: 600;
+  border-radius: 0.5rem;
+}
+
+.user-id {
+  display: flex;
+  flex-direction: column;
+  gap: 0.0625rem;
+  line-height: 1.2;
 }
 
 .user-name {
   font-size: 0.8125rem;
-  color: var(--ink-2);
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.user-role {
+  font-size: 0.6875rem;
+  color: var(--ink-3);
 }
 
 .chev {

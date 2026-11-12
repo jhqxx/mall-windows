@@ -81,14 +81,19 @@
 
 - 按钮：主色实心 / 白底描边两档；hover 加深、disabled 降透明度且不可点；表格内操作用 `link` 文本按钮。
 - 输入：1px 内描边 `--rule`，hover 转 `--ink-3`，focus 转 `--harbor`（不叠加外发光）；禁用底 `#F4F7FA`。
-- 导航项：hover 底色 `--night-2`，选中 `--night-3` + 纯白文字，不加左侧彩色条。
+- 导航项：`min-height: 2.75rem`、字号 0.9375rem、图标 1.0625rem（字号随根字号缩放，不会在小窗口里缩成注释大小）；hover 底色 `--night-2`，选中 `--night-3` + 纯白文字，不加左侧彩色条。
+- 顶栏用户区：主色方形头像（首字）+ 第一行姓名、第二行等宽用户名（`--ink-3`、0.6875rem），不再重复展示角色——角色只出现在下拉菜单里。
 - 表格空状态：居中 mono 小标 `NO RECORDS` + 一句中文说明；附件空状态用 `EMPTY` 描边小签。二者 `line-height: 1.5`，避免继承 Element Plus 空块的行高。
 - 危险动作（删除、批量删除）走 danger 描边按钮 + 二次确认。
 - 焦点环：`2px solid var(--harbor)`，偏移 2px，仅键盘可见。
 
 ## 动效
 
-只保留两处：导航项与面板行在 160ms 内完成底色/颜色变化，行尾箭头在 hover 时右移 0.1875rem；`prefers-reduced-motion: reduce` 时全部降为 0ms。
+三处，都有明确用途：
+
+1. 导航项与面板行在 160ms 内完成底色/颜色变化，行尾箭头 hover 右移 0.1875rem——回答「我在哪、能不能点」。
+2. 登录页封面的粒子星图（`src/renderer/src/components/ParticleField.vue`）：44 个缓慢漂移的点 + 140px 内的连边，用 canvas 绘制，点 `rgba(206,226,241,.62)`、线 `rgba(122,176,214)` 到 0.2 不透明度；密度与亮度都压在同层文字的对比之下，只做「港口夜航」的气氛，不与表单抢注意力。窗口尺寸变化时按 `ResizeObserver` 重算并乘 `devicePixelRatio`，且封面上所有内容都在粒子之上（`z-index: 1`）。
+3. 运行时 `prefers-reduced-motion: reduce` 时，前两处全部降为 0ms，粒子只画静止的一帧。
 
 ## 无障碍
 

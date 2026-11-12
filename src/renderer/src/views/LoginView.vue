@@ -1,6 +1,7 @@
 <template>
   <div class="login">
     <aside class="cover">
+      <ParticleField />
       <header class="cover-head">
         <img class="logo" :src="logoLight" alt="蓝宝星球" />
       </header>
@@ -59,6 +60,7 @@ import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { Lock, User } from '@element-plus/icons-vue'
 import { setUser } from '@/stores/session'
 import logoLight from '@/assets/logo-light.png'
+import ParticleField from '@/components/ParticleField.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -128,6 +130,11 @@ async function submit(): Promise<void> {
   justify-content: space-between;
   padding: clamp(1.5rem, 3vw, 2.5rem);
   overflow: hidden;
+}
+
+.cover > :not(.particles) {
+  position: relative;
+  z-index: 1;
 }
 
 .cover::before {
