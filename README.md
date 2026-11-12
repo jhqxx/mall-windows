@@ -16,6 +16,18 @@
 
 **自适应**：根字号 `clamp()` + 全局 `rem`，侧栏 `clamp(11.5rem, 14vw, 15rem)`，栅格全部用 `fr` / 百分比；窗口缩小到 64rem 以下侧栏收成图标栏（品牌切 `logo-mark.png`），登录页在 60rem 以下改为顶部品牌条 + 居中表单卡，工作台读数在 46rem 以下折成两列。
 
+## 下载
+
+不装环境直接试用：到 [Releases](https://github.com/jhqxx/mall-windows/releases) 下载最新版本（由 GitHub Actions 在 macOS / Windows 真机上自动构建）。
+
+| 文件 | 用途 |
+| --- | --- |
+| `MallDesktop-0.1.0-arm64.dmg` | macOS（Apple Silicon），拖进 Applications |
+| `MallDesktop.Setup.0.1.0.exe` | Windows 安装包：装到本机、建开始菜单/桌面快捷方式、可在「应用和功能」里卸载 |
+| `MallDesktop-0.1.0-portable.exe` | Windows **免安装**：单个 exe，双击即用，不写注册表、不进「应用和功能」，删掉文件就干净 |
+
+免安装版和安装版跑的是同一份代码、同样把数据存在 `%APPDATA%\MallDesktop\`，区别只在「有没有往系统里装东西」。
+
 ## 技术栈
 
 | 层 | 选型 | 说明 |
@@ -44,7 +56,7 @@
 ## 开发
 
 ```bash
-pnpm install      # 首次：装依赖（postinstall 会处理原生依赖，本项目实际无需编译）
+pnpm install      # 首次：装依赖（无原生编译，不需要 node-gyp / VS Build Tools / Python）
 pnpm dev          # 开发模式（HMR）
 pnpm build        # 只构建产物到 out/
 ```
@@ -77,6 +89,17 @@ pnpm build:win
 #   release/MallDesktop Setup 0.1.0.exe   （NSIS 安装包）
 #   release/MallDesktop-0.1.0-portable.exe（免安装单文件）
 ```
+
+### 用 GitHub Actions 自动打包（推荐）
+
+`.github/workflows/build.yml` 会在 **macOS 与 Windows 真机上并行构建**，两条命令都不用你自己开机器：
+
+```bash
+git push origin master            # 每次推送：构建两个平台，产物留在 Actions 的 Artifacts 里
+git tag v0.1.1 && git push origin v0.1.1   # 打 tag：额外把 dmg + exe 挂到 GitHub Release
+```
+
+也可以在仓库的 **Actions → build → Run workflow** 手动触发。Artifacts 里的 `mac-arm64` / `win-x64` 是两个平台打好的包（保留 90 天）。
 
 ### 安装包未签名
 
