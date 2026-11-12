@@ -5,9 +5,8 @@
 
     <el-form ref="formRef" :model="form" :rules="rules" label-width="128px" label-position="right" size="default"
       @submit.prevent>
-      <!-- 案件信息 -->
       <el-card class="section-card" shadow="never">
-        <template #header><span class="section-title">案件信息</span></template>
+        <template #header><span class="section-title"><em class="section-no">01</em>案件信息</span></template>
         <el-row :gutter="24">
           <el-col :span="12">
             <el-form-item label="案件类型" prop="caseType">
@@ -32,10 +31,8 @@
           </el-col>
         </el-row>
       </el-card>
-
-      <!-- 超期信息 -->
       <el-card class="section-card" shadow="never">
-        <template #header><span class="section-title">超期信息</span></template>
+        <template #header><span class="section-title"><em class="section-no">02</em>超期信息</span></template>
         <el-row :gutter="24">
           <el-col :span="12">
             <el-form-item label="是否超期" prop="isOverdue">
@@ -53,10 +50,8 @@
           </el-col>
         </el-row>
       </el-card>
-
-      <!-- 办案人员 -->
       <el-card class="section-card" shadow="never">
-        <template #header><span class="section-title">办案人员</span></template>
+        <template #header><span class="section-title"><em class="section-no">03</em>办案人员</span></template>
         <el-row :gutter="24">
           <el-col :span="12">
             <el-form-item label="主办人" prop="owner">
@@ -81,10 +76,8 @@
           </el-col>
         </el-row>
       </el-card>
-
-      <!-- 签批信息 -->
       <el-card class="section-card" shadow="never">
-        <template #header><span class="section-title">签批信息</span></template>
+        <template #header><span class="section-title"><em class="section-no">04</em>签批信息</span></template>
         <el-row :gutter="24">
           <el-col :span="12">
             <el-form-item label="领导签批" prop="leaderApproval">
@@ -106,10 +99,8 @@
           </el-col>
         </el-row>
       </el-card>
-
-      <!-- 其他信息 -->
       <el-card class="section-card" shadow="never">
-        <template #header><span class="section-title">其他信息</span></template>
+        <template #header><span class="section-title"><em class="section-no">05</em>其他信息</span></template>
         <el-row :gutter="24">
           <el-col :span="24">
             <el-form-item label="实名举报反映情况" prop="reportDetail">
@@ -125,12 +116,10 @@
           </el-col>
         </el-row>
       </el-card>
-
-      <!-- 附件管理 -->
       <el-card class="section-card" shadow="never">
         <template #header>
           <div class="attach-header">
-            <span class="section-title">附件管理</span>
+            <span class="section-title"><em class="section-no">06</em>附件管理</span>
             <span class="attach-count">共 {{ attachments.length }} 个附件</span>
           </div>
         </template>
@@ -163,7 +152,11 @@
             </template>
           </el-table-column>
           <template #empty>
-            <el-empty description="暂无附件，点击「批量上传」选择文件" :image-size="70" />
+            <div class="attach-empty">
+              <span class="attach-empty-tag">EMPTY</span>
+              <p>尚未添加附件</p>
+              <small>点击「批量上传」从本机选择文件，可多选。</small>
+            </div>
           </template>
         </el-table>
       </el-card>
@@ -415,7 +408,47 @@ onMounted(loadPending)
 }
 
 .attach-count {
+  font-size: 12.5px;
+  letter-spacing: 0.02em;
+  color: var(--ink-3);
+}
+
+.section-no {
+  font-family: var(--mono);
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  color: var(--ink-3);
+  margin-right: -2px;
+}
+
+.attach-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 30px 0 34px;
+}
+
+.attach-empty-tag {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  color: var(--ink-3);
+  border: 1px solid var(--rule);
+  padding: 3px 7px;
+  background: var(--surface-alt);
+}
+
+.attach-empty p {
+  margin: 4px 0 0;
   font-size: 13px;
-  color: #909399;
+  color: var(--ink-2);
+}
+
+.attach-empty small {
+  font-size: 12px;
+  color: var(--ink-3);
 }
 </style>

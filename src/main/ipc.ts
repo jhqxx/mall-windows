@@ -97,7 +97,6 @@ function csvCell(value: unknown): string {
 }
 
 export function registerIpc(getWindow: () => BrowserWindow | null): void {
-  /* ---------------- 登录 ---------------- */
 
   ipcMain.handle('auth:auto', () => {
     const token = readRemember()
@@ -150,8 +149,6 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
 
   ipcMain.handle('auth:current', () => (currentUser ? { ok: true, user: currentUser } : { ok: false }))
 
-  /* ---------------- 案件 ---------------- */
-
   ipcMain.handle('case:create', (_event, payload: { input: CaseInput; attachmentIds: number[] }) => {
     try {
       const user = requireUser()
@@ -203,8 +200,6 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
       return { ok: false, message: (err as Error).message }
     }
   })
-
-  /* ---------------- 附件 ---------------- */
 
   const uploadPaths = (paths: string[]): { ok: boolean; rows: any[]; message?: string } => {
     try {
@@ -309,8 +304,6 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     }
   })
 
-  /* ---------------- 日志 ---------------- */
-
   ipcMain.handle(
     'log:list',
     (_event, payload: { page: number; pageSize: number; action?: string; keyword?: string }) => {
@@ -361,8 +354,6 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
       return { ok: false, message: (err as Error).message }
     }
   })
-
-  /* ---------------- 其它 ---------------- */
 
   ipcMain.handle('app:stats', () => ({ ok: true, ...stats(), paths: getPaths() }))
   ipcMain.handle('app:meta', () => ({

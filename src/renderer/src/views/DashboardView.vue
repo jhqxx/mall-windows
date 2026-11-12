@@ -1,83 +1,85 @@
 <template>
   <div class="page">
     <h2 class="page-title">工作台</h2>
-    <p class="page-subtitle">数据均保存在本机 userData 目录，卸载应用不会自动清除。</p>
+    <p class="page-subtitle">数据保存在本机 userData 目录，卸载应用不会自动清除。</p>
 
-    <el-row :gutter="16" class="stat-row">
-      <el-col :span="8">
-        <el-card shadow="never" class="stat-card">
-          <div class="stat-icon blue"><el-icon><Files /></el-icon></div>
-          <div>
-            <div class="stat-label">案件总数</div>
-            <div class="stat-value">{{ stats.cases }}</div>
-          </div>
-        </el-card>
-      </el-col>
-      <el-col :span="8">
-        <el-card shadow="never" class="stat-card">
-          <div class="stat-icon green"><el-icon><Paperclip /></el-icon></div>
-          <div>
-            <div class="stat-label">附件总数</div>
-            <div class="stat-value">{{ stats.attachments }}</div>
-          </div>
-        </el-card>
-      </el-col>
-      <el-col :span="8">
-        <el-card shadow="never" class="stat-card">
-          <div class="stat-icon orange"><el-icon><Tickets /></el-icon></div>
-          <div>
-            <div class="stat-label">操作日志</div>
-            <div class="stat-value">{{ stats.logs }}</div>
-          </div>
-        </el-card>
-      </el-col>
-    </el-row>
+    <section class="ledger" aria-label="数据概览">
+      <div class="ledger-cell">
+        <span class="ledger-label">案件总数</span>
+        <span class="ledger-num">{{ stats.cases }}</span>
+      </div>
+      <div class="ledger-cell">
+        <span class="ledger-label">附件总数</span>
+        <span class="ledger-num">{{ stats.attachments }}</span>
+      </div>
+      <div class="ledger-cell">
+        <span class="ledger-label">操作日志</span>
+        <span class="ledger-num">{{ stats.logs }}</span>
+      </div>
+      <div class="ledger-cell ledger-cell--meta">
+        <span class="ledger-label">存储引擎</span>
+        <span class="ledger-engine mono">{{ stats.driver }}</span>
+      </div>
+    </section>
 
-    <el-row :gutter="16">
-      <el-col :span="14">
-        <el-card shadow="never" class="section-card">
-          <template #header>
-            <span class="section-title">快捷入口</span>
-          </template>
-          <div class="quick">
-            <el-button type="primary" size="large" @click="router.push('/cases/new')">
-              <el-icon><DocumentAdd /></el-icon> 新建案件办理单
-            </el-button>
-            <el-button size="large" @click="router.push('/cases')">
-              <el-icon><Files /></el-icon> 查看案件列表
-            </el-button>
-            <el-button size="large" @click="router.push('/logs')">
-              <el-icon><Tickets /></el-icon> 查看操作日志
-            </el-button>
+    <div class="split">
+      <section class="sheet">
+        <header class="sheet-head">
+          <h3 class="section-title">开始办理</h3>
+        </header>
+        <div class="entries">
+          <button class="entry" type="button" @click="router.push('/cases/new')">
+            <span class="entry-text">
+              <strong>新建案件办理单</strong>
+              <small>登记案件信息、办案人员与附件</small>
+            </span>
+            <el-icon class="entry-arrow"><ArrowRight /></el-icon>
+          </button>
+          <button class="entry" type="button" @click="router.push('/cases')">
+            <span class="entry-text">
+              <strong>查看案件列表</strong>
+              <small>检索、查看与删除已登记的案件</small>
+            </span>
+            <el-icon class="entry-arrow"><ArrowRight /></el-icon>
+          </button>
+          <button class="entry" type="button" @click="router.push('/logs')">
+            <span class="entry-text">
+              <strong>查看操作日志</strong>
+              <small>按动作与时间筛选，导出 CSV</small>
+            </span>
+            <el-icon class="entry-arrow"><ArrowRight /></el-icon>
+          </button>
+        </div>
+        <p class="note">
+          演示路径：登录（记住我 / 错误密码留痕）→ 案件录入（条件校验 / 附件上传）→ 列表 → 操作日志。
+        </p>
+      </section>
+
+      <section class="sheet">
+        <header class="sheet-head">
+          <h3 class="section-title">运行环境</h3>
+        </header>
+        <dl class="env">
+          <div class="env-row"><dt>应用版本</dt><dd class="mono">v{{ meta.version }}</dd></div>
+          <div class="env-row"><dt>Electron</dt><dd class="mono">{{ meta.electron }}</dd></div>
+          <div class="env-row"><dt>Node</dt><dd class="mono">{{ meta.node }}</dd></div>
+          <div class="env-row"><dt>SQLite 驱动</dt><dd class="mono">{{ stats.driver }}</dd></div>
+          <div class="env-row"><dt>平台</dt><dd class="mono">{{ meta.platform }}</dd></div>
+          <div class="env-row env-row--path">
+            <dt>数据目录</dt>
+            <dd class="mono path">{{ stats.paths?.userData }}</dd>
           </div>
-          <el-alert type="info" :closable="false" show-icon class="hint"
-            title="演示要点：登录（记住我 / 错误密码留痕）→ 案件录入（条件校验 / 附件上传）→ 列表 → 操作日志（筛选 / 导出 CSV）" />
-        </el-card>
-      </el-col>
-      <el-col :span="10">
-        <el-card shadow="never" class="section-card">
-          <template #header>
-            <span class="section-title">运行环境</span>
-          </template>
-          <el-descriptions :column="1" size="small" border>
-            <el-descriptions-item label="应用版本">v{{ meta.version }}</el-descriptions-item>
-            <el-descriptions-item label="Electron">{{ meta.electron }}</el-descriptions-item>
-            <el-descriptions-item label="Node">{{ meta.node }}</el-descriptions-item>
-            <el-descriptions-item label="SQLite 驱动">{{ stats.driver }}</el-descriptions-item>
-            <el-descriptions-item label="平台">{{ meta.platform }}</el-descriptions-item>
-            <el-descriptions-item label="数据目录">
-              <span class="path">{{ stats.paths?.userData }}</span>
-            </el-descriptions-item>
-          </el-descriptions>
-        </el-card>
-      </el-col>
-    </el-row>
+        </dl>
+        <p class="env-note">数据只落在本机 SQLite 文件，不经过任何服务端。</p>
+      </section>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { onMounted, reactive } from 'vue'
 import { useRouter } from 'vue-router'
+import { ArrowRight } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const stats = reactive<{
@@ -114,73 +116,176 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.stat-row {
-  margin-bottom: 4px;
+.ledger {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 1.15fr);
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-top: 2px solid var(--harbor);
+  margin-bottom: 18px;
 }
 
-.stat-card {
+.ledger-cell {
+  padding: 16px 20px 18px;
   display: flex;
-  align-items: center;
-  border-radius: 8px;
+  flex-direction: column;
+  gap: 8px;
+  border-right: 1px solid var(--rule);
 }
 
-.stat-card :deep(.el-card__body) {
+.ledger-cell:last-child {
+  border-right: none;
+}
+
+.ledger-label {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--ink-3);
+}
+
+.ledger-num {
+  font-family: var(--display);
+  font-size: 38px;
+  line-height: 1;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+.ledger-engine {
+  font-family: var(--mono);
+  font-size: 14px;
+  color: var(--ink);
+  padding-top: 12px;
+  word-break: break-all;
+}
+
+.split {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.sheet {
+  border: 1px solid var(--rule);
+  background: var(--surface);
+}
+
+.sheet-head {
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.entries {
+  display: flex;
+  flex-direction: column;
+}
+
+.entry {
   display: flex;
   align-items: center;
-  gap: 14px;
+  justify-content: space-between;
+  gap: 16px;
   width: 100%;
+  padding: 13px 18px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--rule);
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  transition: background-color 0.16s ease;
 }
 
-.stat-icon {
-  width: 46px;
-  height: 46px;
-  border-radius: 10px;
+.entry:last-child {
+  border-bottom: none;
+}
+
+.entry:hover {
+  background: var(--surface-alt);
+}
+
+.entry-text {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 20px;
-  color: #fff;
+  flex-direction: column;
+  gap: 4px;
 }
 
-.stat-icon.blue {
-  background: linear-gradient(135deg, #409eff, #2f6fe4);
+.entry-text strong {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink);
 }
 
-.stat-icon.green {
-  background: linear-gradient(135deg, #67c23a, #3f9c22);
-}
-
-.stat-icon.orange {
-  background: linear-gradient(135deg, #e6a23c, #d18616);
-}
-
-.stat-label {
+.entry-text small {
   font-size: 12px;
-  color: #909399;
-  margin-bottom: 2px;
+  color: var(--ink-3);
 }
 
-.stat-value {
-  font-size: 24px;
-  font-weight: 700;
-  color: #1f2d3d;
-  line-height: 1.15;
+.entry-arrow {
+  font-size: 13px;
+  color: var(--rule-2);
+  transition: transform 0.16s ease, color 0.16s ease;
 }
 
-.quick {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-  margin-bottom: 16px;
+.entry:hover .entry-arrow {
+  transform: translateX(3px);
+  color: var(--harbor);
 }
 
-.hint {
-  border-radius: 8px;
+.note {
+  margin: 0;
+  padding: 12px 18px 14px;
+  border-top: 1px solid var(--rule);
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--ink-3);
+}
+
+.env {
+  margin: 0;
+  padding: 0;
+}
+
+.env-row {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 14px;
+  padding: 10px 18px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.env-row:last-child {
+  border-bottom: none;
+}
+
+.env-row dt {
+  font-size: 11.5px;
+  color: var(--ink-3);
+  padding-top: 2px;
+}
+
+.env-row dd {
+  margin: 0;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+.env-note {
+  margin: 0;
+  padding: 12px 18px 14px;
+  border-top: 1px solid var(--rule);
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--ink-3);
 }
 
 .path {
-  font-family: 'SF Mono', Menlo, Consolas, monospace;
-  font-size: 11px;
   word-break: break-all;
+  font-size: 11px;
+  line-height: 1.6;
 }
 </style>

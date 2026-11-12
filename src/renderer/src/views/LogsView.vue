@@ -20,35 +20,35 @@
       </div>
 
       <el-table v-loading="loading" :data="rows" border stripe>
-        <el-table-column label="时间" width="175">
+        <el-table-column label="时间" width="168" class-name="cell-mono">
           <template #default="{ row }">{{ formatTime(row.created_at) }}</template>
         </el-table-column>
-        <el-table-column prop="username" label="用户" width="110">
+        <el-table-column prop="username" label="用户" width="90">
           <template #default="{ row }">{{ row.username || '-' }}</template>
         </el-table-column>
-        <el-table-column label="动作" width="130">
+        <el-table-column label="动作" width="140">
           <template #default="{ row }">
             <span class="action-text">{{ actionLabel(row.action) }}</span>
             <div class="action-code">{{ row.action }}</div>
           </template>
         </el-table-column>
-        <el-table-column label="对象" width="110">
+        <el-table-column label="对象" width="116" class-name="cell-mono">
           <template #default="{ row }">
             <span v-if="row.target_type">{{ row.target_type }}#{{ row.target_id }}</span>
             <span v-else>-</span>
           </template>
         </el-table-column>
-        <el-table-column prop="detail" label="详情" min-width="280" show-overflow-tooltip />
-        <el-table-column prop="machine" label="机器名" width="140" show-overflow-tooltip />
-        <el-table-column label="结果" width="90" align="center">
+        <el-table-column prop="detail" label="详情" min-width="232" show-overflow-tooltip />
+        <el-table-column prop="machine" label="机器名" width="130" show-overflow-tooltip />
+        <el-table-column label="结果" width="80" align="center">
           <template #default="{ row }">
-            <el-tag :type="row.result === 'success' ? 'success' : 'danger'" size="small">
+            <el-tag :type="row.result === 'success' ? 'success' : 'danger'" effect="plain" size="small">
               {{ row.result === 'success' ? '成功' : '失败' }}
             </el-tag>
           </template>
         </el-table-column>
         <template #empty>
-          <el-empty description="暂无日志" :image-size="80" />
+          <div class="empty-state"><span>NO RECORDS</span><p>当前筛选条件下没有日志</p></div>
         </template>
       </el-table>
 
@@ -141,15 +141,24 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+:deep(.cell-mono) {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 .action-text {
-  font-size: 13px;
-  color: #303133;
+  font-size: 12.5px;
+  color: var(--ink);
 }
 
 .action-code {
-  font-size: 11px;
-  color: #a8abb2;
-  font-family: 'SF Mono', Menlo, Consolas, monospace;
+  margin-top: 2px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
+  color: var(--ink-3);
 }
 
 .pager {

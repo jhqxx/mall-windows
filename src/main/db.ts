@@ -199,8 +199,6 @@ export function sqliteDriver(): DriverName {
   return conn_().driver
 }
 
-/* ---------------- 用户 / 登录 ---------------- */
-
 export function findUser(username: string):
   | { id: number; username: string; display_name: string; role: string; password_hash: string; salt: string }
   | undefined {
@@ -243,8 +241,6 @@ export function findUserByToken(token: string):
 export function deleteSession(token: string): void {
   conn_().prepare('DELETE FROM sessions WHERE token = ?').run(token)
 }
-
-/* ---------------- 案件 ---------------- */
 
 export function createCase(input: CaseInput, operator: SessionUser, attachmentIds: number[]): CaseRow {
   const conn = conn_()
@@ -340,8 +336,6 @@ export function deleteCase(id: number): CaseRow | undefined {
   return row
 }
 
-/* ---------------- 附件 ---------------- */
-
 export function addAttachments(sourcePaths: string[], uploader: string): AttachmentRow[] {
   const conn = conn_()
   const dir = getPaths().attachmentsDir
@@ -417,8 +411,6 @@ export function copyAttachmentTo(row: AttachmentRow, targetDir: string): string 
   fs.copyFileSync(row.stored_path, target)
   return target
 }
-
-/* ---------------- 操作日志 ---------------- */
 
 export function addLog(entry: {
   userId?: number | null

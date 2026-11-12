@@ -1,15 +1,6 @@
 /**
- * SQLite 数据层驱动封装。
- *
- * 设计目标（对应需求）：优先使用 Electron 内置的 node:sqlite（Node >= 22 内置，零原生依赖），
- * 若当前 Electron/Node 不可用，则自动回退到 better-sqlite3（N-API 预编译，跨平台免编译）。
- * 上层业务代码只依赖 SqliteHandle 接口，切换驱动不需要改动。
- *
- * 差异抹平点：
- * - better-sqlite3 的 `db.pragma(sql)` 在 node:sqlite 里没有 → 用 `exec("PRAGMA ...")` 等价实现。
- * - better-sqlite3 的 `db.transaction(fn)` 返回可调用函数 → node:sqlite 用 BEGIN/COMMIT/ROLLBACK 模拟。
- * - 命名参数：better-sqlite3 用 `@name` 绑定 `{ name }`；node:sqlite 默认允许裸键名绑定同样写法。
- * - `lastInsertRowid` / `changes` 统一转成 number（node:sqlite 可能返回 bigint）。
+ * node:sqlite 优先、better-sqlite3 回退；上层只依赖 SqliteHandle。
+ * 差异抹平：pragma→exec；transaction→BEGIN/COMMIT/ROLLBACK；lastInsertRowid/changes 统一 number。
  */
 
 export interface RunResult {
@@ -30,7 +21,6 @@ export interface SqliteHandle {
   exec(sql: string): void
   pragma(sql: string): void
   prepare(sql: string): SqliteStatement
-  /** 与 better-sqlite3 一致：返回一个立即执行事务的零参函数 */
   transaction<T>(fn: () => T): () => T
   close(): void
 }

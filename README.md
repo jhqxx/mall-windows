@@ -2,6 +2,18 @@
 
 跨平台桌面演示应用（Windows 为主，macOS 同步可用）：**登录 → 案件办理单录入 → 操作日志**，数据全部落本机 SQLite，不依赖任何后端服务。
 
+## 界面
+
+| 登录 | 工作台 |
+| --- | --- |
+| ![登录](docs/screenshots/login.png) | ![工作台](docs/screenshots/dashboard.png) |
+
+| 案件办理单 | 操作日志 |
+| --- | --- |
+| ![案件办理单](docs/screenshots/form.png) | ![操作日志](docs/screenshots/logs.png) |
+
+视觉体系见 [DESIGN.md](DESIGN.md)：港口作业台气质，深水蓝 + 钢灰 + 纸白，发丝线结构，等宽数字，无渐变无阴影。
+
 ## 技术栈
 
 | 层 | 选型 | 说明 |
