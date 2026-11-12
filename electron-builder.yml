@@ -1,0 +1,36 @@
+appId: com.lbxq.malldesktop
+productName: MallDesktop
+directories:
+  buildResources: build
+  output: release
+files:
+  - out/**/*
+  - package.json
+asarUnpack:
+  - '**/*.node'
+afterPack: ./scripts/afterPack.cjs
+npmRebuild: false # better-sqlite3 v13 自带各平台 N-API 预编译产物，任一平台都不需要 node-gyp/VS 编译工具链
+mac:
+  target:
+    - target: dmg
+      arch:
+        - arm64
+  category: public.app-category.business
+  identity: null
+dmg:
+  title: MallDesktop
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+    - target: portable
+      arch:
+        - x64
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  perMachine: false
+  shortcutName: Mall Desktop
+portable:
+  artifactName: MallDesktop-${version}-portable.exe
