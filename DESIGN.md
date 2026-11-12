@@ -90,12 +90,12 @@
 
 ## 动效
 
-三处，都有明确用途：
+四处，都有明确用途：
 
 1. 导航项与面板行在 160ms 内完成底色/颜色变化，行尾箭头 hover 右移 0.1875rem——回答「我在哪、能不能点」。
-2. 登录页标题「案件办理 / 桌面终端」本身就是粒子构成（`src/renderer/src/components/ParticleTitle.vue`）：把两行标题在离屏 canvas 上按真实字号（`clamp(2rem, 2.4vw + 1.2rem, 3rem)`）绘制、逐像素采样（2px 步长），在采样点上生成粒子，粒子绕各自原点做 0.7–1.8px 的正弦浮动（8% 的粒子给到 3–8px，负责「散」的观感），字因此会「呼吸」但始终可读。真实文字保留在 DOM 里（`opacity: 0`），读屏与自动化仍能取到标题；采样与容器尺寸绑定，`ResizeObserver` 触发重采样，窗口缩放不会糊。标题在封面内水平、垂直居中，与右侧表单卡形成对称。
+2. 登录页开场：粒子从封面四边汇聚成标题。`src/renderer/src/components/ParticleTitle.vue` 把两行标题在离屏 canvas 上按真实字号（`clamp(2rem, 2.4vw + 1.2rem, 3rem)`）绘制、逐像素采样（2px 步长），每个采样点生成一颗粒子，起点取「从封面中心沿该点方向射出与封面边界的交点，落在边界内侧 2%–10%」，因此粒子一定从面板四边飞入而不是从画面外凭空出现。单颗粒子 `delay = (1 - 距中心/最大半径) * 170ms + 随机 170ms`、`duration = 1150–1630ms`、`easeInOutCubic`（先慢、再快、末尾收住，肉眼能看清「从边上飞进来」），靠近边缘的先出发，1.0s 前后连成字形、2.0s 内完全落定；落定后浮 amplitudes 生效（0.7–1.8px 正弦漂移，8% 的粒子给到 3–8px 负责「散」的观感），字会「呼吸」但始终可读。真实文字保留在 DOM 里（`opacity: 0`、`pointer-events: none`），读屏与自动化仍能取到标题；`ResizeObserver` 触发重采样，窗口缩放不会糊。
 3. 封面背景的粒子星图（`src/renderer/src/components/ParticleField.vue`）：44 个缓慢漂移的点 + 140px 内的连边，用 canvas 绘制，点 `rgba(206,226,241,.62)`、线 `rgba(122,176,214)` 到 0.2 不透明度；密度与亮度都压在同层文字的对比之下，只做「港口夜航」的气氛，不与表单抢注意力。窗口尺寸变化时按 `ResizeObserver` 重算并乘 `devicePixelRatio`，且封面上所有内容都在粒子之上（`z-index: 1`）。
-4. 运行时 `prefers-reduced-motion: reduce` 时，前两处全部降为 0ms，两处粒子都只画静止的一帧。
+4. 运行时 `prefers-reduced-motion: reduce` 时，前两处全部降为 0ms，两处粒子都只画静止的一帧（标题直接停在汇聚完成的位置）。
 
 ## 无障碍
 

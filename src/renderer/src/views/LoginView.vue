@@ -2,13 +2,11 @@
   <div class="login">
     <aside class="cover">
       <ParticleField />
+      <ParticleTitle class="cover-title" :lines="['案件办理', '桌面终端']" />
+
       <header class="cover-head">
         <img class="logo" :src="logoLight" alt="蓝宝星球" />
       </header>
-
-      <div class="cover-copy">
-        <ParticleTitle :lines="['案件办理', '桌面终端']" />
-      </div>
 
       <footer class="cover-foot mono">
         <span>v{{ version }}</span>
@@ -133,7 +131,7 @@ async function submit(): Promise<void> {
   overflow: hidden;
 }
 
-.cover > :not(.particles) {
+.cover > :not(.particles):not(.cover-title) {
   position: relative;
   z-index: 1;
 }
@@ -159,9 +157,9 @@ async function submit(): Promise<void> {
   height: auto;
 }
 
-.cover-copy {
-  display: flex;
-  justify-content: center;
+.cover-title {
+  position: absolute;
+  inset: 0;
 }
 
 .cover-foot {
