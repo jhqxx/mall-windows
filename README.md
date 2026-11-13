@@ -22,9 +22,9 @@
 
 | 文件 | 用途 |
 | --- | --- |
-| `MallDesktop-0.1.0-arm64.dmg` | macOS（Apple Silicon），拖进 Applications |
-| `MallDesktop.Setup.0.1.0.exe` | Windows 安装包：装到本机、建开始菜单/桌面快捷方式、可在「应用和功能」里卸载 |
-| `MallDesktop-0.1.0-portable.exe` | Windows **免安装**：单个 exe，双击即用，不写注册表、不进「应用和功能」，删掉文件就干净 |
+| `MallDesktop-0.1.1-arm64.dmg` | macOS（Apple Silicon），拖进 Applications |
+| `MallDesktop.Setup.0.1.1.exe` | Windows 安装包：装到本机、建开始菜单/桌面快捷方式、可在「应用和功能」里卸载 |
+| `MallDesktop-0.1.1-portable.exe` | Windows **免安装**：单个 exe，双击即用，不写注册表、不进「应用和功能」，删掉文件就干净 |
 
 免安装版和安装版跑的是同一份代码、同样把数据存在 `%APPDATA%\MallDesktop\`，区别只在「有没有往系统里装东西」。
 
@@ -74,7 +74,7 @@ pnpm build        # 只构建产物到 out/
 
 ```bash
 pnpm build:mac
-# 产物：release/MallDesktop-0.1.0-arm64.dmg（约 120 MB）
+# 产物：release/MallDesktop-0.1.1-arm64.dmg（约 120 MB）
 ```
 
 ### Windows（在 Windows 机器上执行）
@@ -86,8 +86,8 @@ pnpm build:mac
 pnpm install
 pnpm build:win
 # 产物：
-#   release/MallDesktop Setup 0.1.0.exe   （NSIS 安装包）
-#   release/MallDesktop-0.1.0-portable.exe（免安装单文件）
+#   release/MallDesktop Setup 0.1.1.exe   （NSIS 安装包）
+#   release/MallDesktop-0.1.1-portable.exe（免安装单文件）
 ```
 
 ### 用 GitHub Actions 自动打包（推荐）

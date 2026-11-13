@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell } from 'electron'
+import { app, BrowserWindow, nativeTheme, shell } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
 import { initDb } from './db'
@@ -9,6 +9,9 @@ const customUserData = process.env['MALL_USER_DATA']
 if (customUserData) {
   app.setPath('userData', customUserData)
 }
+
+// 标题栏跟随品牌浅色界面，避免 Windows 深色模式下标题栏变黑
+nativeTheme.themeSource = 'light'
 
 const gotLock = app.requestSingleInstanceLock()
 if (!gotLock) {
