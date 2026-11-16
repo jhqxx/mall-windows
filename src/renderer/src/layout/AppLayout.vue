@@ -2,7 +2,7 @@
   <el-container class="shell">
     <aside class="sidebar">
       <div class="brand">
-        <img class="logo logo-full" :src="logoLight" alt="蓝宝星球" />
+        <img class="logo logo-full" :src="logoColor" alt="蓝宝星球" />
         <img class="logo logo-mark" :src="logoMark" alt="蓝宝星球" />
       </div>
 
@@ -29,7 +29,7 @@
     <el-container class="body">
       <el-header class="topbar">
         <div class="crumb">
-          <span class="crumb-app mono">LANBAOSTAR</span>
+          <span class="crumb-app">连云港港口控股集团</span>
           <span class="crumb-sep">/</span>
           <span class="crumb-current">{{ currentTitle }}</span>
         </div>
@@ -65,7 +65,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowDown, Collection, Files, Odometer, Tickets, User } from '@element-plus/icons-vue'
 import { setUser, session } from '@/stores/session'
-import logoLight from '@/assets/logo-light.png'
+import logoColor from '@/assets/logo-color.png'
 import logoMark from '@/assets/logo-mark.png'
 
 const route = useRoute()
@@ -138,6 +138,7 @@ async function handleCommand(command: string): Promise<void> {
   display: flex;
   flex-direction: column;
   background: var(--night);
+  border-right: 1px solid var(--rule);
   color: var(--night-text);
 }
 
@@ -185,13 +186,18 @@ async function handleCommand(command: string): Promise<void> {
 }
 
 .nav-item:hover {
-  color: #eef3f7;
+  color: var(--ink);
   background: var(--night-2);
 }
 
 .nav-item.active {
-  color: #ffffff;
+  color: var(--harbor);
   background: var(--night-3);
+  font-weight: 500;
+}
+
+.nav-item.active .nav-icon {
+  color: var(--harbor);
 }
 
 .nav-icon {

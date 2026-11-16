@@ -24,7 +24,7 @@
               <span class="class-name">{{ item.ClassName }}</span>
               <span class="class-count mono">{{ item.itemCount }}</span>
             </div>
-            <span class="class-desc">{{ item.Description || '—' }}</span>
+            <span v-if="item.Description && item.Description !== item.ClassName" class="class-desc">{{ item.Description }}</span>
             <div class="class-actions">
               <el-button link type="primary" @click.stop="openClassEdit(item)">编辑</el-button>
               <el-button link type="danger" @click.stop="removeClass(item)">删除</el-button>
@@ -45,8 +45,11 @@
           <el-table-column prop="ItemKey" label="键值" min-width="120" class-name="cell-mono" />
           <el-table-column prop="ItemValue" label="显示值" min-width="160" />
           <el-table-column prop="SortOrder" label="排序" width="70" align="center" />
-          <el-table-column prop="Description" label="说明" min-width="180" show-overflow-tooltip>
-            <template #default="{ row }">{{ row.Description || '—' }}</template>
+          <el-table-column label="说明" min-width="160" show-overflow-tooltip>
+            <template #default="{ row }">
+              <span v-if="row.Description && row.Description !== row.ItemValue">{{ row.Description }}</span>
+              <span v-else class="muted">—</span>
+            </template>
           </el-table-column>
           <el-table-column label="操作" width="120">
             <template #default="{ row }">

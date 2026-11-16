@@ -1,26 +1,26 @@
 :root {
   font-size: clamp(13.5px, 0.24vw + 12.4px, 16.5px);
 
-  --page: #eef1f4;
+  --page: #eff5fb;
   --surface: #ffffff;
-  --surface-alt: #f6f8fa;
-  --surface-sunken: #eaeef2;
-  --ink: #10161d;
-  --ink-2: #38434f;
-  --ink-3: #5b6875;
-  --rule: #dfe5ea;
-  --rule-2: #c3ced8;
-  --harbor: #1668a8;
-  --harbor-deep: #115585;
-  --harbor-deeper: #0d4166;
+  --surface-alt: #f6fafd;
+  --surface-sunken: #e8f0f8;
+  --ink: #14212e;
+  --ink-2: #3a4a5a;
+  --ink-3: #5a6b7c;
+  --rule: #dce7f1;
+  --rule-2: #c2d4e4;
+  --harbor: #1f6fb2;
+  --harbor-deep: #175a93;
+  --harbor-deeper: #10456f;
   --teal: #0e7c86;
   --signal: #b45309;
   --ok: #157f5d;
-  --night: #102a42;
-  --night-2: #163454;
-  --night-3: #1d4166;
-  --night-text: #b3bfca;
-  --night-muted: #8795a3;
+  --night: #f7fbff;
+  --night-2: #e8f1fa;
+  --night-3: #e1eefa;
+  --night-text: #3a4a5a;
+  --night-muted: #6b7d8f;
 
   --sans: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Segoe UI', 'Microsoft YaHei',
     'Hiragino Sans GB', sans-serif;

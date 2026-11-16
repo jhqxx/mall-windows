@@ -9,15 +9,25 @@
         <el-button type="primary" :icon="Plus" @click="openNew">新增信访</el-button>
         <el-button :icon="Edit" :disabled="selection.length !== 1" @click="openEdit(selection[0])">编辑</el-button>
         <el-button :icon="Delete" :disabled="!selection.length" @click="removeSelected">批量删除</el-button>
-        <el-button :icon="Download" :disabled="!selection.length" @click="exportRows">导出选中</el-button>
-        <el-button :icon="Download" @click="exportAll">导出全部</el-button>
+        <el-dropdown trigger="click" @command="onExport">
+          <el-button :icon="Download">
+            导出<el-icon class="el-icon--right"><ArrowDown /></el-icon>
+          </el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="selected" :disabled="!selection.length">导出选中（{{ selection.length }} 条）</el-dropdown-item>
+              <el-dropdown-item command="all">导出全部（{{ total }} 条）</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+        <el-button :icon="Upload" @click="importExcel">导入 Excel</el-button>
+        <el-button :icon="Printer" @click="printList">打印台账</el-button>
       </div>
     </header>
 
     <section class="filters">
       <el-select v-model="filter.category" placeholder="信访类别" clearable class="w-140" @change="reload">
-        <el-option label="问题线索" value="0" />
-        <el-option label="信访件" value="1" />
+        <el-option v-for="o in categoryOptions" :key="o.value" :label="o.label" :value="o.value" />
       </el-select>
       <el-select v-model="filter.disposeForm" placeholder="处置形态" clearable class="w-160" @change="reload">
         <el-option v-for="item in disposeOptions" :key="item.value" :label="item.label" :value="item.value" />
@@ -54,48 +64,38 @@
       :data="rows"
       border
       stripe
-      height="calc(100vh - 21rem)"
+      max-height="calc(100vh - 20rem)"
       row-key="OriginalCode"
       @selection-change="onSelectionChange"
       @row-dblclick="openDetail"
     >
-      <el-table-column type="selection" width="46" />
-      <el-table-column prop="OriginalCode" label="原始编号" width="140" class-name="cell-mono" />
-      <el-table-column prop="NewCode" label="新建编号" width="120" class-name="cell-mono" />
-      <el-table-column label="信访类别" width="100">
+      <el-table-column type="selection" width="46" fixed="left" />
+      <el-table-column prop="OriginalCode" label="原始编号" width="118" class-name="cell-mono" fixed="left" />
+      <el-table-column label="类别" width="80">
         <template #default="{ row }">{{ categoryLabel(row.Category) }}</template>
       </el-table-column>
-      <el-table-column label="被反映类型" width="110">
-        <template #default="{ row }">{{ targetTypeLabel(row.TargetType) }}</template>
-      </el-table-column>
-      <el-table-column prop="TargetName" label="被反映人" width="110" show-overflow-tooltip />
-      <el-table-column prop="OrganizationName" label="被反映单位" min-width="130" show-overflow-tooltip />
-      <el-table-column prop="ProblemSummary" label="问题摘要" min-width="260" show-overflow-tooltip />
-      <el-table-column label="举报形式" width="94">
-        <template #default="{ row }">{{ reportFormLabel(row.ReportForm) }}</template>
-      </el-table-column>
-      <el-table-column label="处置形态" width="110">
-        <template #default="{ row }">{{ labelOf(disposeLabelMap, row.DisposeForm) }}</template>
-      </el-table-column>
-      <el-table-column prop="MainHandler" label="主办人" width="96" />
-      <el-table-column prop="AssistantHandler" label="协办人" width="96" />
-      <el-table-column label="是否办结" width="94">
+      <el-table-column label="被反映对象" width="150" show-overflow-tooltip>
         <template #default="{ row }">
-          <el-tag :type="row.IsCompleted === 'BJ1001' ? 'success' : 'info'" effect="plain" size="small">
-            {{ row.IsCompleted === 'BJ1001' ? '是' : '否' }}
-          </el-tag>
+          <span>{{ row.TargetType === 'ORG' ? row.OrganizationName || '—' : row.TargetName || '—' }}</span>
+          <span class="cell-sub">{{ targetTypeLabel(row.TargetType) }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="是否超期" width="94">
+      <el-table-column prop="ProblemSummary" label="问题摘要" min-width="160" show-overflow-tooltip />
+      <el-table-column label="线索来源" width="100" show-overflow-tooltip>
+        <template #default="{ row }">{{ labelOf(clueLabelMap, row.ClueSource) }}</template>
+      </el-table-column>
+      <el-table-column prop="MainHandler" label="主办人" width="78" />
+      <el-table-column label="办结" width="78">
         <template #default="{ row }">
-          <el-tag v-if="row.IsOverdue === 'CQ1001'" type="danger" effect="plain" size="small">是</el-tag>
-          <span v-else class="muted">否</span>
+          <el-tag :type="row.IsCompleted === 'BJ1001' ? 'success' : 'info'" effect="plain" size="small">
+            {{ row.IsCompleted === 'BJ1001' ? '已办结' : '办理中' }}
+          </el-tag>
         </template>
       </el-table-column>
       <el-table-column label="接收时间" width="150" class-name="cell-mono">
         <template #default="{ row }">{{ shortTime(row.ReceiveTime) }}</template>
       </el-table-column>
-      <el-table-column label="操作" width="132" fixed="right">
+      <el-table-column label="操作" width="120" fixed="right" class-name="cell-actions">
         <template #default="{ row }">
           <el-button link type="primary" @click="openDetail(row)">查看</el-button>
           <el-button link @click="openEdit(row)">编辑</el-button>
@@ -119,6 +119,12 @@
     </div>
 
     <el-drawer v-model="detailVisible" title="信访详情" size="46%">
+      <template #header>
+        <div class="drawer-head">
+          <span class="drawer-title">信访详情</span>
+          <el-button v-if="detail" size="small" :icon="Printer" @click="printOne">打印</el-button>
+        </div>
+      </template>
       <div v-if="detail" class="detail">
         <section v-for="group in detailGroups" :key="group.title">
           <h3>{{ group.title }}</h3>
@@ -138,7 +144,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Delete, Download, Edit, Plus, RefreshLeft, Search } from '@element-plus/icons-vue'
+import { ArrowDown, Delete, Download, Edit, Plus, Printer, RefreshLeft, Search, Upload } from '@element-plus/icons-vue'
 
 type Row = Record<string, any>
 
@@ -163,12 +169,14 @@ const filter = reactive({
   keyword: '',
 })
 
-const categoryMap: Record<string, string> = { '0': '问题线索', '1': '信访件' }
-const targetTypeMap: Record<string, string> = { ORG: '单位', IND: '个人' }
+const categoryOptions = ref<Array<{ label: string; value: string }>>([])
+const categoryMap = ref<Record<string, string>>({ '0': '问题线索', '1': '信访件' })
+const targetTypeMap = ref<Record<string, string>>({ ORG: '单位', IND: '个人' })
 const reportFormMap: Record<string, string> = { JB1001: '实名', JB1002: '匿名' }
+const clueLabelMap = ref<Record<string, string>>({})
 
-const categoryLabel = (v: string) => categoryMap[v] ?? v ?? '—'
-const targetTypeLabel = (v: string) => targetTypeMap[v] ?? v ?? '—'
+const categoryLabel = (v: string) => categoryMap.value[v] ?? v ?? '—'
+const targetTypeLabel = (v: string) => targetTypeMap.value[v] ?? v ?? '—'
 const reportFormLabel = (v: string) => reportFormMap[v] ?? v ?? '—'
 const labelOf = (map: Record<string, string>, v: string) => map[v] ?? v ?? '—'
 
@@ -292,6 +300,35 @@ async function openDetail(row: Row): Promise<void> {
   detailVisible.value = true
 }
 
+function onExport(command: string): void {
+  if (command === 'selected') exportRows()
+  else exportAll()
+}
+
+async function importExcel(): Promise<void> {
+  const res = await window.api.complaints.importExcel()
+  if (!res?.ok) {
+    ElMessage.error(res?.error ?? '导入失败')
+    return
+  }
+  const data = res.data as { imported: number; skipped: number; failed: number; canceled: boolean; errors?: string[] }
+  if (data.canceled) return
+  if (data.errors?.length) ElMessage.warning(data.errors.join('；'))
+  ElMessage.success(`导入完成：新增 ${data.imported} 条，跳过重复 ${data.skipped} 条，失败 ${data.failed} 条`)
+  await load()
+}
+
+async function printList(): Promise<void> {
+  const res = await window.api.complaints.printList({ ...filter })
+  if (!res?.ok) ElMessage.error(res?.error ?? '无法打开打印预览')
+}
+
+async function printOne(): Promise<void> {
+  if (!detail.value) return
+  const res = await window.api.complaints.print(String(detail.value.OriginalCode))
+  if (!res?.ok) ElMessage.error(res?.error ?? '无法打开打印预览')
+}
+
 async function exportRows(): Promise<void> {
   if (!selection.value.length) return
   const res = await window.api.exports.complaints(selection.value.map((row) => row.OriginalCode))
@@ -336,12 +373,20 @@ function shortTime(value: string | null): string {
 }
 
 onMounted(async () => {
-  const [dispose, labels] = await Promise.all([
+  const [dispose, disposeLabels, category, categoryLabels, targetTypes, clueLabels] = await Promise.all([
     window.api.dict.options('处置形态'),
     window.api.dict.labels('处置形态'),
+    window.api.dict.options('信访类别'),
+    window.api.dict.labels('信访类别'),
+    window.api.dict.labels('被反映人类型'),
+    window.api.dict.labels('线索来源'),
   ])
   if (dispose?.ok) disposeOptions.value = dispose.data
-  if (labels?.ok) disposeLabelMap.value = labels.data
+  if (disposeLabels?.ok) disposeLabelMap.value = disposeLabels.data
+  if (category?.ok) categoryOptions.value = category.data
+  if (categoryLabels?.ok && Object.keys(categoryLabels.data).length) categoryMap.value = categoryLabels.data
+  if (targetTypes?.ok && Object.keys(targetTypes.data).length) targetTypeMap.value = targetTypes.data
+  if (clueLabels?.ok) clueLabelMap.value = clueLabels.data
   load()
 })
 </script>
@@ -441,5 +486,33 @@ onMounted(async () => {
   margin: 0;
   color: var(--ink);
   word-break: break-word;
+}
+
+.drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-right: 1rem;
+}
+
+.drawer-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+.cell-sub {
+  margin-left: 0.375rem;
+  font-size: 0.6875rem;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+
+:deep(.cell-actions .cell) {
+  white-space: nowrap;
+}
+
+:deep(.el-table__row .cell) {
+  line-height: 1.4;
 }
 </style>

@@ -29,7 +29,7 @@
         <el-table-column label="操作人" width="150">
           <template #default="{ row }">
             {{ row.UserRealName || row.UserName }}
-            <span class="role" v-if="row.UserRole === 'Admin'">管理员</span>
+            <span class="role" v-if="row.UserRole === 'Admin' && row.UserRealName !== '系统管理员'">管理员</span>
           </template>
         </el-table-column>
         <el-table-column prop="OperationType" label="类型" width="110" />

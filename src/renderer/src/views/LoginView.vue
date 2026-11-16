@@ -2,14 +2,14 @@
   <div class="login">
     <aside class="cover">
       <ParticleField />
-      <ParticleTitle class="cover-title" :lines="['信访管理', '桌面终端']" />
+      <ParticleTitle class="cover-title" :lines="['审查调查', '工作平台']" />
 
       <header class="cover-head">
-        <img class="logo" :src="logoLight" alt="蓝宝星球" />
+        <img class="logo" :src="logoColor" alt="蓝宝星球" />
       </header>
 
       <footer class="cover-foot mono">
-        <span>v{{ version }}</span>
+        <span v-if="version">v{{ version }}</span>
       </footer>
     </aside>
 
@@ -56,7 +56,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { Lock, User } from '@element-plus/icons-vue'
 import { setUser } from '@/stores/session'
-import logoLight from '@/assets/logo-light.png'
+import logoColor from '@/assets/logo-color.png'
 import ParticleField from '@/components/ParticleField.vue'
 import ParticleTitle from '@/components/ParticleTitle.vue'
 
@@ -64,7 +64,7 @@ const router = useRouter()
 const route = useRoute()
 const formRef = ref<FormInstance>()
 const loading = ref(false)
-const version = ref('0.1.0')
+const version = ref('')
 
 const form = reactive({ username: 'admin', password: 'admin123' })
 
@@ -114,8 +114,9 @@ async function submit(): Promise<void> {
   position: relative;
   flex: 0 0 42%;
   max-width: 34rem;
-  background: var(--night);
-  color: var(--night-text);
+  background: #e8f2fd;
+  border-right: 1px solid var(--rule);
+  color: var(--ink-2);
   display: flex;
   flex-direction: column;
   justify-content: space-between;

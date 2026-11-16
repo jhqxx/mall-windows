@@ -168,3 +168,129 @@ export function buildStatsWorkbook(): Buffer {
     { name: '承办部室', rows: dept },
   ])
 }
+
+
+const IMPORT_HEADERS: Array<[string, string]> = [
+  ['原始编号', 'OriginalCode'],
+  ['线索编号', 'NewCode'],
+  ['信访编号', 'CategoryCode'],
+  ['信访类别', 'Category'],
+  ['线索来源', 'ClueSource'],
+  ['接收时间', 'ReceiveTime'],
+  ['被反映人类型', 'TargetType'],
+  ['姓名', 'TargetName'],
+  ['单位名称', 'OrganizationName'],
+  ['法定代表人', 'LegalPerson'],
+  ['性别', 'Gender'],
+  ['职级', 'TargetRank'],
+  ['政治面貌', 'PoliticalStatus'],
+  ['出生年月', 'BirthDate'],
+  ['单位职务', 'TargetPost'],
+  ['工作经历', 'WorkExperience'],
+  ['联系方式', 'ContactPhone'],
+  ['联系地址', 'ContactAddress'],
+  ['举报形式', 'ReportForm'],
+  ['举报人', 'ReportName'],
+  ['举报电话', 'ReportPhone'],
+  ['反映问题摘要', 'ProblemSummary'],
+  ['分办时间', 'AssignTime'],
+  ['分办部室', 'AssignDept'],
+  ['承办形式', 'UndertakeForm'],
+  ['承办部室', 'UndertakeDept'],
+  ['处置时间', 'DisposeTime'],
+  ['处置方式', 'DisposeMethod'],
+  ['应办结时间', 'Deadline'],
+  ['处置进度情况', 'DisposeProgress'],
+  ['办理情况', 'HandleStatus'],
+  ['处置形态', 'DisposeForm'],
+  ['处置结果', 'DisposeResult'],
+  ['是否办结', 'IsCompleted'],
+  ['办结时间', 'CompleteTime'],
+  ['是否超期', 'IsOverdue'],
+  ['超期原因', 'OverdueReason'],
+  ['主办人', 'MainHandler'],
+  ['协办人', 'AssistantHandler'],
+  ['审核人', 'AuditHandler'],
+  ['领导签批', 'LeaderApproval'],
+  ['签批情况', 'ApprovalStatus'],
+  ['实名举报反馈情况', 'RealNameReport'],
+  ['备注', 'Remark'],
+]
+
+const DICT_COLUMNS: Array<[string, string]> = [
+  ['信访类别', '信访类别'],
+  ['线索来源', '线索来源'],
+  ['举报形式', '举报形式'],
+  ['性别', '性别'],
+  ['职级', '职位层级'],
+  ['政治面貌', '政治面貌'],
+  ['承办形式', '承办形式'],
+  ['处置方式', '处置方式'],
+  ['处置形态', '处置形态'],
+  ['处置结果', '处置（核实）结果'],
+  ['是否办结', '是否办结'],
+  ['是否超期', '是否超期'],
+  ['领导签批', '领导签批'],
+  ['签批情况', '签批情况'],
+]
+
+/** 把导出的显示值反解回存储键，用于导入 */
+function reverseMaps(): Record<string, Record<string, string>> {
+  const out: Record<string, Record<string, string>> = {}
+  for (const [header, className] of DICT_COLUMNS) {
+    const map: Record<string, string> = {}
+    for (const [key, label] of Object.entries(dictLabelMap(className))) map[label.trim()] = key
+    out[header] = map
+  }
+  out['被反映人类型'] = { 单位: 'ORG', 个人: 'IND' }
+  return out
+}
+
+function reverseDepts(className: string, raw: string): string {
+  if (!raw) return ''
+  const map: Record<string, string> = {}
+  for (const [key, label] of Object.entries(dictLabelMap(className))) map[label.trim()] = key
+  return raw
+    .split(/[、,，;；]/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => map[part] ?? part)
+    .join(',')
+}
+
+export interface ImportRow {
+  row: Record<string, string | null>
+  line: number
+}
+
+/** 解析导入的 Excel；表头缺失或缺少数必填时抛错 */
+export function parseComplaintWorkbook(buffer: Buffer): ImportRow[] {
+  const wb = XLSX.read(buffer, { type: 'buffer', cellDates: false })
+  const sheet = wb.Sheets[wb.SheetNames[0]]
+  if (!sheet) throw new Error('工作簿里没有可用的工作表')
+  const raw = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' })
+  if (!raw.length) throw new Error('工作表没有数据行')
+  const reverse = reverseMaps()
+  const known = new Set(IMPORT_HEADERS.map(([header]) => header))
+  const firstKeys = Object.keys(raw[0] ?? {})
+  const matched = firstKeys.filter((key) => known.has(key.trim()))
+  if (matched.length < 3) {
+    throw new Error('表头不匹配：请使用本系统「导出全部」得到的表格作为导入模板')
+  }
+  return raw.map((item, index) => {
+    const row: Record<string, string | null> = {}
+    for (const [header, column] of IMPORT_HEADERS) {
+      const value = item[header]
+      if (value === undefined || value === '') {
+        row[column] = null
+        continue
+      }
+      const text = String(value).trim()
+      if (reverse[header]) row[column] = reverse[header][text] ?? text
+      else if (column === 'AssignDept') row[column] = reverseDepts('分办部室或片区', text)
+      else if (column === 'UndertakeDept') row[column] = reverseDepts('承办部室或片区', text)
+      else row[column] = text
+    }
+    return { row, line: index + 2 }
+  })
+}

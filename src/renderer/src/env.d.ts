@@ -21,6 +21,9 @@ interface Window {
       nextCode: () => Promise<AnyResult>
       save: (payload: { isNew: boolean; data: Record<string, string | null> }) => Promise<AnyResult>
       remove: (codes: string[]) => Promise<AnyResult>
+      importExcel: () => Promise<AnyResult>
+      print: (code: string) => Promise<AnyResult>
+      printList: (filter: unknown) => Promise<AnyResult>
     }
     attachments: {
       list: (code: string) => Promise<AnyResult>

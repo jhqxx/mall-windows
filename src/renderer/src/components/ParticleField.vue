@@ -55,7 +55,7 @@ function draw(): void {
       const dy = dots[i].y - dots[j].y
       const dist = Math.hypot(dx, dy)
       if (dist > LINK_DISTANCE) continue
-      ctx.strokeStyle = `rgba(122, 176, 214, ${(1 - dist / LINK_DISTANCE) * 0.2})`
+      ctx.strokeStyle = `rgba(96, 152, 196, ${(1 - dist / LINK_DISTANCE) * 0.28})`
       ctx.lineWidth = 0.6
       ctx.beginPath()
       ctx.moveTo(dots[i].x, dots[i].y)
@@ -65,7 +65,7 @@ function draw(): void {
   }
 
   for (const dot of dots) {
-    ctx.fillStyle = 'rgba(206, 226, 241, 0.62)'
+    ctx.fillStyle = 'rgba(31, 111, 178, 0.5)'
     ctx.beginPath()
     ctx.arc(dot.x, dot.y, dot.r, 0, Math.PI * 2)
     ctx.fill()

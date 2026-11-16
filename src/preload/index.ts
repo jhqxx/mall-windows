@@ -14,6 +14,9 @@ const api = {
     nextCode: () => invoke('complaint:nextCode'),
     save: (payload: { isNew: boolean; data: Record<string, string | null> }) => invoke('complaint:save', payload),
     remove: (codes: string[]) => invoke('complaint:delete', codes),
+    importExcel: () => invoke('import:complaints'),
+    print: (code: string) => invoke('print:complaint', code),
+    printList: (filter: unknown) => invoke('print:list', filter),
   },
   attachments: {
     list: (code: string) => invoke('attachment:list', code),

@@ -29,8 +29,7 @@
         <div class="grid">
           <el-form-item label="信访类别">
             <el-select v-model="form.Category" class="fill">
-              <el-option label="问题线索" value="0" />
-              <el-option label="信访件" value="1" />
+              <el-option v-for="o in options.信访类别" :key="o.value" :label="o.label" :value="o.value" />
             </el-select>
           </el-form-item>
           <el-form-item label="线索来源">
@@ -49,8 +48,7 @@
         <div class="grid">
           <el-form-item label="被反映人类型">
             <el-select v-model="form.TargetType" class="fill">
-              <el-option label="单位" value="ORG" />
-              <el-option label="个人" value="IND" />
+              <el-option v-for="o in options.被反映人类型" :key="o.value" :label="o.label" :value="o.value" />
             </el-select>
           </el-form-item>
           <el-form-item v-if="isUnit" label="单位名称">
@@ -333,6 +331,8 @@ const form = reactive<Record<string, any>>({
 })
 
 const DICT_CLASSES = [
+  '信访类别',
+  '被反映人类型',
   '线索来源',
   '职位层级',
   '政治面貌',

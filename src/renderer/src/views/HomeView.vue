@@ -11,11 +11,11 @@
       </div>
     </header>
 
-    <section class="cards">
-      <article v-for="card in cards" :key="card.key" class="card" :style="{ '--tone': card.tone }">
-        <span class="card-label">{{ card.label }}</span>
-        <span class="card-value">{{ card.value }}</span>
-        <span class="card-note">{{ card.note }}</span>
+    <section class="ledger">
+      <article v-for="item in cards" :key="item.key" class="cell" :class="{ alert: item.alert }">
+        <span class="cell-label">{{ item.label }}</span>
+        <span class="cell-value">{{ item.value }}</span>
+        <span class="cell-note">{{ item.note }}</span>
       </article>
     </section>
 
@@ -38,6 +38,7 @@
         </el-table>
       </div>
 
+      <div class="pair">
       <div class="panel">
         <header class="panel-head">
           <h2>线索来源</h2>
@@ -78,6 +79,7 @@
             </template>
           </el-table-column>
         </el-table>
+      </div>
       </div>
     </section>
   </div>
@@ -129,14 +131,14 @@ const clueSources = ref<GroupRow[]>([])
 const disposeForms = ref<GroupRow[]>([])
 
 const cards = computed(() => [
-  { key: 'xs', label: '问题线索', value: overview.value.xsTotal, note: '线索总数', tone: 'signal' },
-  { key: 'xf', label: '信访件', value: overview.value.xfTotal, note: '信访总数', tone: 'harbor' },
-  { key: 'real', label: '实名举报', value: overview.value.reportCount, note: '累计接收', tone: 'teal' },
-  { key: 'anon', label: '匿名举报', value: overview.value.accusationCount, note: '累计接收', tone: 'ink' },
-  { key: 'done', label: '已办结', value: overview.value.completed, note: '已完成办理', tone: 'ok' },
-  { key: 'doing', label: '办理中', value: overview.value.processing, note: '进行中案件', tone: 'signal' },
-  { key: 'overdue', label: '已超期', value: overview.value.overdue, note: `超期率 ${overview.value.overdueRate}%`, tone: 'danger' },
-  { key: 'rate', label: '办结率', value: `${overview.value.completionRate}%`, note: '整体完成率', tone: 'harbor' },
+  { key: 'xs', label: '问题线索', value: overview.value.xsTotal, note: '线索总数', alert: false },
+  { key: 'xf', label: '信访件', value: overview.value.xfTotal, note: '信访总数', alert: false },
+  { key: 'real', label: '实名举报', value: overview.value.reportCount, note: '累计接收', alert: false },
+  { key: 'anon', label: '匿名举报', value: overview.value.accusationCount, note: '累计接收', alert: false },
+  { key: 'done', label: '已办结', value: overview.value.completed, note: '已完成办理', alert: false },
+  { key: 'doing', label: '办理中', value: overview.value.processing, note: '进行中案件', alert: false },
+  { key: 'overdue', label: '已超期', value: overview.value.overdue, note: `超期率 ${overview.value.overdueRate}%`, alert: overview.value.overdue > 0 },
+  { key: 'rate', label: '办结率', value: `${overview.value.completionRate}%`, note: '整体完成率', alert: false },
 ])
 
 async function load(): Promise<void> {
@@ -205,43 +207,59 @@ onMounted(load)
   color: var(--ink-3);
 }
 
-.cards {
+.ledger {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.75rem;
-}
-
-.card {
+  grid-template-columns: repeat(8, minmax(0, 1fr));
   background: var(--surface);
   border: 1px solid var(--rule);
-  border-top: 2px solid var(--tone);
   border-radius: var(--r-md);
-  padding: 0.875rem 1rem 1rem;
+  overflow: hidden;
+}
+
+.cell {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
+  padding: 0.875rem 1rem 1rem;
+  border-right: 1px solid var(--rule);
 }
 
-.card-label {
-  font-size: 0.8125rem;
-  color: var(--ink-2);
+.cell:last-child {
+  border-right: none;
 }
 
-.card-value {
-  font-size: clamp(1.5rem, 1.6vw + 0.9rem, 2.125rem);
+.cell-label {
+  font-size: 0.75rem;
+  color: var(--ink-3);
+  letter-spacing: 0.04em;
+}
+
+.cell-value {
+  font-size: clamp(1.5rem, 1.4vw + 0.95rem, 2rem);
   font-weight: 600;
+  line-height: 1.1;
   color: var(--ink);
   font-variant-numeric: tabular-nums;
 }
 
-.card-note {
-  font-size: 0.75rem;
+.cell-note {
+  font-size: 0.6875rem;
   color: var(--ink-3);
 }
 
+.cell.alert .cell-value {
+  color: var(--signal);
+}
+
 .panels {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+}
+
+.pair {
   display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.875rem;
 }
 
@@ -250,10 +268,6 @@ onMounted(load)
   border: 1px solid var(--rule);
   border-radius: var(--r-md);
   padding: 0.875rem 1rem 1rem;
-}
-
-.panel.wide {
-  grid-column: 1 / 2;
 }
 
 .panel-head {
@@ -275,17 +289,39 @@ onMounted(load)
   color: var(--ink-3);
 }
 
-@media (max-width: 64rem) {
-  .cards {
+@media (max-width: 76rem) {
+  .ledger {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .cell:nth-child(4) {
+    border-right: none;
+  }
+
+  .cell:nth-child(n + 5) {
+    border-top: 1px solid var(--rule);
+  }
+}
+
+@media (max-width: 60rem) {
+  .ledger {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .panels {
-    grid-template-columns: minmax(0, 1fr);
+  .cell:nth-child(2n) {
+    border-right: none;
   }
 
-  .panel.wide {
-    grid-column: auto;
+  .cell:nth-child(2n + 1) {
+    border-right: 1px solid var(--rule);
+  }
+
+  .cell:nth-child(n + 3) {
+    border-top: 1px solid var(--rule);
+  }
+
+  .pair {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 

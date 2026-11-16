@@ -44,7 +44,7 @@ let observer: ResizeObserver | undefined
 let introStart = 0
 let introDone = 0
 
-const TONES = ['rgba(250, 253, 255, 0.99)', 'rgba(224, 238, 248, 0.94)', 'rgba(126, 176, 212, 0.95)']
+const TONES = ['rgba(16, 69, 111, 0.98)', 'rgba(31, 111, 178, 0.95)', 'rgba(70, 138, 190, 0.9)']
 
 function easeInOutCubic(t: number): number {
   return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2

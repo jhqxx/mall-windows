@@ -19,9 +19,9 @@ mac:
   category: public.app-category.business
   identity: null
   extendInfo:
-    CFBundleDisplayName: 信访管理系统
+    CFBundleDisplayName: 审查调查工作平台
 dmg:
-  title: 信访管理系统
+  title: 审查调查工作平台
 win:
   target:
     - target: nsis
@@ -34,6 +34,6 @@ nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
   perMachine: false
-  shortcutName: 信访管理系统
+  shortcutName: 审查调查工作平台
 portable:
   artifactName: PetitionDesktop-${version}-portable.exe

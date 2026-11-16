@@ -1,6 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import fs from 'node:fs'
-import { buildComplaintWorkbook, buildLogWorkbook, buildStatsWorkbook } from './excel'
+import { buildComplaintWorkbook, buildLogWorkbook, buildStatsWorkbook, parseComplaintWorkbook } from './excel'
+import { complaintPrintHtml, listPrintHtml } from './print'
 import os from 'node:os'
 import path from 'node:path'
 import {
@@ -492,6 +493,96 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
   ipcMain.handle('stats:groups', (_e, field: 'ClueSource' | 'DisposeForm' | 'UndertakeDept') => {
     requireUser()
     return ok(groupStats(field))
+  })
+
+  ipcMain.handle('import:complaints', async () => {
+    const user = requireUser()
+    const win = getWindow()
+    const options = {
+      properties: ['openFile' as const],
+      filters: [{ name: 'Excel 工作簿', extensions: ['xlsx', 'xls'] }],
+    }
+    const override = process.env.MALL_TEST_HOOKS === '1' ? process.env.MALL_IMPORT_FILE : undefined
+    const picked = override
+      ? { canceled: false, filePaths: [override] }
+      : win
+        ? await dialog.showOpenDialog(win, options)
+        : await dialog.showOpenDialog(options)
+    if (picked.canceled || !picked.filePaths.length) {
+      return ok({ imported: 0, skipped: 0, failed: 0, canceled: true, errors: [] as string[] })
+    }
+    const file = picked.filePaths[0]
+    let parsed
+    try {
+      parsed = parseComplaintWorkbook(fs.readFileSync(file))
+    } catch (error) {
+      return fail((error as Error).message)
+    }
+    let imported = 0
+    let skipped = 0
+    let failed = 0
+    const errors: string[] = []
+    for (const item of parsed) {
+      const data: Record<string, string | null> = { ...item.row }
+      if (!data.OriginalCode) data.OriginalCode = nextOriginalCode()
+      if (getComplaint(String(data.OriginalCode))) {
+        skipped += 1
+        continue
+      }
+      if (!data.Category) data.Category = '0'
+      if (!data.IsCompleted) data.IsCompleted = 'BJ1002'
+      if (!data.ReceiveTime) data.ReceiveTime = new Date().toISOString().slice(0, 19).replace('T', ' ')
+      try {
+        saveComplaint(data, true)
+        imported += 1
+      } catch (error) {
+        failed += 1
+        if (errors.length < 5) errors.push(`第 ${item.line} 行：${(error as Error).message}`)
+      }
+    }
+    addLog({
+      userName: user.username,
+      userRealName: user.realName,
+      userRole: user.role,
+      operationType: '导入',
+      operationModule: '信访管理',
+      operationContent: `导入 ${path.basename(file)}：成功 ${imported} 条，跳过 ${skipped} 条，失败 ${failed} 条`,
+      targetName: path.basename(file),
+      ipAddress: localIp(),
+    })
+    return ok({ imported, skipped, failed, canceled: false, errors })
+  })
+
+  function openPreview(title: string, html: string): void {
+    const win = new BrowserWindow({
+      width: 960,
+      height: 1040,
+      title,
+      backgroundColor: '#f2f6fb',
+      autoHideMenuBar: true,
+      webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false },
+    })
+    void win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`)
+  }
+
+  ipcMain.handle('print:complaint', (_e, code: string) => {
+    requireUser()
+    try {
+      openPreview(`打印预览 ${code}`, complaintPrintHtml(code))
+      return ok(true)
+    } catch (error) {
+      return fail((error as Error).message)
+    }
+  })
+
+  ipcMain.handle('print:list', (_e, filter) => {
+    requireUser()
+    try {
+      openPreview('打印预览 · 信访台账', listPrintHtml(filter ?? {}))
+      return ok(true)
+    } catch (error) {
+      return fail((error as Error).message)
+    }
   })
 
   async function saveWorkbook(
