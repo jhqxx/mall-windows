@@ -22,7 +22,8 @@
         <el-button :icon="Download" @click="exportLogs">导出Excel</el-button>
       </div>
 
-      <el-table :data="rows" border stripe size="small">
+      <div ref="tableWrap" class="table-wrap">
+      <el-table :data="rows" border stripe size="small" :height="tableHeight">
         <el-table-column label="时间" width="168" class-name="cell-mono">
           <template #default="{ row }">{{ shortTime(row.OperationTime) }}</template>
         </el-table-column>
@@ -41,6 +42,7 @@
           <div class="empty">没有匹配的日志</div>
         </template>
       </el-table>
+      </div>
 
       <div class="pager">
         <el-pagination
@@ -59,7 +61,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { onMounted, onUnmounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Download, Refresh, Search } from '@element-plus/icons-vue'
 
@@ -123,7 +125,27 @@ async function exportLogs(): Promise<void> {
   ElMessage.success(res.data ? `已导出到 ${res.data}` : '已取消导出')
 }
 
+const tableWrap = ref<HTMLElement | null>(null)
+const tableHeight = ref(420)
+let wrapObserver: ResizeObserver | null = null
+
+function measureTable(): void {
+  const el = tableWrap.value
+  if (!el) return
+  tableHeight.value = Math.max(240, Math.round(el.clientHeight))
+}
+
+onUnmounted(() => {
+  wrapObserver?.disconnect()
+  wrapObserver = null
+})
+
 onMounted(async () => {
+  measureTable()
+  if (tableWrap.value) {
+    wrapObserver = new ResizeObserver(measureTable)
+    wrapObserver.observe(tableWrap.value)
+  }
   const res = await window.api.logs.facets()
   if (res?.ok) Object.assign(facets, res.data)
   load()
@@ -131,8 +153,14 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+.table-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
 .page {
-  padding: 1.5rem 1.75rem 2rem;
+  padding: 1.5rem 1.75rem 1.75rem;
+  min-height: calc(100vh - 3.25rem);
   display: flex;
   flex-direction: column;
   gap: 1rem;
@@ -156,6 +184,11 @@ onMounted(async () => {
   border: 1px solid var(--rule);
   border-radius: var(--r-md);
   padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  gap: 0.75rem;
 }
 
 .toolbar {

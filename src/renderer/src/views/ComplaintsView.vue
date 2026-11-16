@@ -79,11 +79,12 @@
       <el-tab-pane :label="`已超期 (${tabs.overdue ?? 0})`" name="overdue" />
     </el-tabs>
 
-    <el-table
+    <div ref="tableWrap" class="table-wrap">
+      <el-table
       :data="rows"
       border
       stripe
-      max-height="calc(100vh - 20rem)"
+      :height="tableHeight"
       row-key="OriginalCode"
       @selection-change="onSelectionChange"
       @row-dblclick="openDetail"
@@ -149,6 +150,7 @@
         <div class="empty">{{ filter.deleted ? '回收站为空' : '暂无记录' }}</div>
       </template>
     </el-table>
+    </div>
 
     <div class="pager">
       <el-pagination
@@ -246,7 +248,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowDown, Delete, Download, Edit, Plus, Printer, RefreshLeft, RefreshRight, Search, Upload } from '@element-plus/icons-vue'
@@ -269,6 +271,29 @@ const tabs = ref<Record<string, number>>({})
 const selection = ref<Row[]>([])
 const disposeOptions = ref<Array<{ label: string; value: string }>>([])
 const disposeLabelMap = ref<Record<string, string>>({})
+const tableWrap = ref<HTMLElement | null>(null)
+const tableHeight = ref(420)
+let wrapObserver: ResizeObserver | null = null
+
+function measureTable(): void {
+  const el = tableWrap.value
+  if (!el) return
+  tableHeight.value = Math.max(240, Math.round(el.clientHeight))
+}
+
+onMounted(() => {
+  measureTable()
+  if (tableWrap.value) {
+    wrapObserver = new ResizeObserver(measureTable)
+    wrapObserver.observe(tableWrap.value)
+  }
+})
+
+onUnmounted(() => {
+  wrapObserver?.disconnect()
+  wrapObserver = null
+})
+
 const detailVisible = ref(false)
 const linkedVisible = ref(false)
 const linked = ref<Record<string, any> | null>(null)
@@ -658,6 +683,12 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: 0.875rem;
+  min-height: calc(100vh - 3.25rem);
+}
+
+.table-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .page-head {
