@@ -64,22 +64,12 @@ export type CaseInput = {
   remark: string | null
 }
 
-export type DictGroupRow = {
-  id: number
-  name: string
-  sort_no: number
-  remark: string | null
-  created_at: string
-  type_count: number
-}
-
 export type DictTypeRow = {
   id: number
   code: string
   name: string
   remark: string | null
   builtin: number
-  group_id: number | null
   created_at: string
   item_count: number
 }
@@ -87,6 +77,8 @@ export type DictTypeRow = {
 export type DictItemRow = {
   id: number
   type_code: string
+  parent_id: number | null
+  children?: DictItemRow[]
   label: string
   value: string
   sort_no: number
@@ -182,7 +174,9 @@ const MIGRATIONS: string[] = [
     remark TEXT,
     created_at TEXT NOT NULL
   );`,
-  `ALTER TABLE dict_types ADD COLUMN group_id INTEGER;`
+  `ALTER TABLE dict_types ADD COLUMN group_id INTEGER;`,
+  `ALTER TABLE dict_items ADD COLUMN parent_id INTEGER;`,
+  `CREATE INDEX IF NOT EXISTS idx_dict_items_parent ON dict_items (parent_id);`
 ]
 
 export const nowIso = (): string => new Date().toISOString()
@@ -248,34 +242,22 @@ function seed(): void {
 }
 
 // 内置字典：与表单里的下拉项一一对应，可改列表但不能删除类型本身。
-const DICT_GROUPS: { name: string; sort: number; remark: string }[] = [
-  { name: '案件业务', sort: 1, remark: '案件办理单上的选项' },
-  { name: '签批流程', sort: 2, remark: '签批与审核相关选项' },
-  { name: '通用选项', sort: 3, remark: '跨模块复用的基础选项' }
-]
-
-const DICT_SEEDS: { code: string; name: string; group: string; items: string[] }[] = [
-  { code: 'case_type', name: '案件类型', group: '案件业务', items: ['投诉举报', '业务咨询', '违规线索', '服务纠纷', '其他'] },
-  { code: 'leader_approval', name: '领导签批', group: '签批流程', items: ['同意', '不同意', '待签批'] },
-  { code: 'approval_status', name: '签批情况', group: '签批流程', items: ['已签批', '部分签批', '未签批'] },
-  { code: 'yes_no', name: '是否', group: '通用选项', items: ['是', '否'] }
+const DICT_SEEDS: { code: string; name: string; items: string[] }[] = [
+  {
+    code: 'case_type',
+    name: '案件类型',
+    items: ['投诉举报', '业务咨询', '违规线索', '服务纠纷', '其他']
+  },
+  { code: 'leader_approval', name: '领导签批', items: ['同意', '不同意', '待签批'] },
+  { code: 'approval_status', name: '签批情况', items: ['已签批', '部分签批', '未签批'] },
+  { code: 'yes_no', name: '是否', items: ['是', '否'] }
 ]
 
 function seedDictionaries(conn: SqliteHandle): void {
   const ts = nowIso()
-  const insertGroup = conn.prepare(
-    `INSERT INTO dict_groups (name, sort_no, remark, created_at)
-     VALUES (?, ?, ?, ?)
-     ON CONFLICT(name) DO NOTHING`
-  )
-  for (const group of DICT_GROUPS) insertGroup.run(group.name, group.sort, group.remark, ts)
-  const groupIds = new Map<string, number>()
-  for (const row of conn.prepare('SELECT id, name FROM dict_groups').all() as { id: number; name: string }[]) {
-    groupIds.set(row.name, row.id)
-  }
   const insertType = conn.prepare(
-    `INSERT INTO dict_types (code, name, remark, builtin, group_id, created_at)
-     VALUES (?, ?, ?, 1, ?, ?)
+    `INSERT INTO dict_types (code, name, remark, builtin, created_at)
+     VALUES (?, ?, ?, 1, ?)
      ON CONFLICT(code) DO NOTHING`
   )
   const insertItem = conn.prepare(
@@ -283,17 +265,9 @@ function seedDictionaries(conn: SqliteHandle): void {
      VALUES (?, ?, ?, ?, 1, NULL, ?, ?)
      ON CONFLICT(type_code, value) DO NOTHING`
   )
-  const assignGroup = conn.prepare('UPDATE dict_types SET group_id = ? WHERE code = ? AND group_id IS NULL')
   for (const dict of DICT_SEEDS) {
-    insertType.run(dict.code, dict.name, '系统内置字典', groupIds.get(dict.group) ?? null, ts)
-    assignGroup.run(groupIds.get(dict.group) ?? null, dict.code)
+    insertType.run(dict.code, dict.name, '系统内置字典', ts)
     dict.items.forEach((label, index) => insertItem.run(dict.code, label, label, index + 1, ts, ts))
-  }
-  const orphans = conn.prepare('SELECT COUNT(*) AS c FROM dict_types WHERE group_id IS NULL').get() as { c: number }
-  if (orphans.c > 0) {
-    insertGroup.run('未分组', 99, '升级时未能自动归类的字典', ts)
-    const row = conn.prepare("SELECT id FROM dict_groups WHERE name = '未分组'").get() as { id: number }
-    conn.prepare('UPDATE dict_types SET group_id = ? WHERE group_id IS NULL').run(row.id)
   }
 }
 
@@ -598,86 +572,72 @@ export function stats(): { cases: number; attachments: number; logs: number; dri
   return { cases: c.n, attachments: a.n, logs: l.n, driver: conn.driver }
 }
 
-export function listDictGroups(): DictGroupRow[] {
+export function listDictTypes(): DictTypeRow[] {
   return conn_()
     .prepare(
-      `SELECT g.*, (SELECT COUNT(*) FROM dict_types t WHERE t.group_id = g.id) AS type_count
-       FROM dict_groups g
-       ORDER BY g.sort_no ASC, g.id ASC`
+      `SELECT t.*, (SELECT COUNT(*) FROM dict_items i WHERE i.type_code = t.code) AS item_count
+       FROM dict_types t
+       ORDER BY t.builtin DESC, t.id ASC`
     )
-    .all() as DictGroupRow[]
+    .all() as DictTypeRow[]
 }
 
-export function saveDictGroup(input: {
-  id?: number
-  name: string
-  sortNo?: number
-  remark?: string | null
-}): DictGroupRow {
-  const conn = conn_()
-  if (input.id) {
-    conn
-      .prepare('UPDATE dict_groups SET name = ?, sort_no = ?, remark = ? WHERE id = ?')
-      .run(input.name, input.sortNo ?? 0, input.remark ?? null, input.id)
-    return conn.prepare('SELECT * FROM dict_groups WHERE id = ?').get(input.id) as DictGroupRow
+type DictOptionNode = { label: string; value: string; children?: DictOptionNode[] }
+
+function buildItemTree(rows: DictItemRow[]): DictItemRow[] {
+  const byId = new Map<number, DictItemRow>()
+  const roots: DictItemRow[] = []
+  for (const row of rows) byId.set(row.id, { ...row, children: [] })
+  for (const row of rows) {
+    const node = byId.get(row.id)!
+    const parent = row.parent_id === null ? undefined : byId.get(row.parent_id)
+    if (parent) parent.children!.push(node)
+    else roots.push(node)
   }
-  const info = conn
-    .prepare('INSERT INTO dict_groups (name, sort_no, remark, created_at) VALUES (?, ?, ?, ?)')
-    .run(input.name, input.sortNo ?? 0, input.remark ?? null, nowIso())
-  return conn.prepare('SELECT * FROM dict_groups WHERE id = ?').get(Number(info.lastInsertRowid)) as DictGroupRow
+  return roots
 }
 
-export function deleteDictGroup(id: number): { ok: boolean; message?: string; name?: string } {
-  const conn = conn_()
-  const row = conn.prepare('SELECT * FROM dict_groups WHERE id = ?').get(id) as DictGroupRow | undefined
-  if (!row) return { ok: false, message: '分组不存在' }
-  const used = conn.prepare('SELECT COUNT(*) AS c FROM dict_types WHERE group_id = ?').get(id) as { c: number }
-  if (used.c > 0) return { ok: false, message: '该分组下还有字典，先移走或删除' }
-  conn.prepare('DELETE FROM dict_groups WHERE id = ?').run(id)
-  return { ok: true, name: row.name }
-}
-
-export function listDictTypes(groupId?: number): DictTypeRow[] {
-  const conn = conn_()
-  const sql = `SELECT t.*, (SELECT COUNT(*) FROM dict_items i WHERE i.type_code = t.code) AS item_count
-       FROM dict_types t`
-  const order = ' ORDER BY t.builtin DESC, t.id ASC'
-  if (groupId === undefined) return conn.prepare(sql + order).all() as DictTypeRow[]
-  return conn.prepare(sql + ' WHERE t.group_id = ?' + order).all(groupId) as DictTypeRow[]
+export function getDictItem(id: number): DictItemRow | undefined {
+  return conn_().prepare('SELECT * FROM dict_items WHERE id = ?').get(id) as DictItemRow | undefined
 }
 
 export function listDictItems(typeCode: string): DictItemRow[] {
-  return conn_()
+  const rows = conn_()
     .prepare('SELECT * FROM dict_items WHERE type_code = ? ORDER BY sort_no ASC, id ASC')
     .all(typeCode) as DictItemRow[]
+  return buildItemTree(rows)
 }
 
-/** 表单下拉用：只取启用项，按排序号升序 */
-export function dictOptions(code: string): { label: string; value: string }[] {
-  return conn_()
+/** 表单树形下拉用：只取启用项，父项停用时整枝不出现在下拉里 */
+export function dictOptions(code: string): DictOptionNode[] {
+  const rows = conn_()
     .prepare(
-      'SELECT label, value FROM dict_items WHERE type_code = ? AND enabled = 1 ORDER BY sort_no ASC, id ASC'
+      'SELECT * FROM dict_items WHERE type_code = ? AND enabled = 1 ORDER BY sort_no ASC, id ASC'
     )
-    .all(code) as { label: string; value: string }[]
+    .all(code) as DictItemRow[]
+  const toNode = (row: DictItemRow): DictOptionNode => {
+    const children = (row.children ?? []).filter((child) => child.enabled === 1).map(toNode)
+    return children.length
+      ? { label: row.label, value: row.value, children }
+      : { label: row.label, value: row.value }
+  }
+  return buildItemTree(rows).map(toNode)
 }
 
 export function saveDictType(input: {
   id?: number
   code: string
   name: string
-  groupId?: number | null
   remark?: string | null
 }): DictTypeRow {
   const conn = conn_()
   if (input.id) {
-    conn
-      .prepare('UPDATE dict_types SET name = ?, remark = ?, group_id = ? WHERE id = ?')
-      .run(input.name, input.remark ?? null, input.groupId ?? null, input.id)
+    conn.prepare('UPDATE dict_types SET name = ?, remark = ? WHERE id = ?').run(input.name, input.remark ?? null, input.id)
     return conn.prepare('SELECT * FROM dict_types WHERE id = ?').get(input.id) as DictTypeRow
   }
   const info = conn
-    .prepare('INSERT INTO dict_types (code, name, remark, builtin, group_id, created_at) VALUES (?, ?, ?, 0, ?, ?)')
-    .run(input.code, input.name, input.remark ?? null, input.groupId ?? null, nowIso())
+    .prepare('INSERT INTO dict_types (code, name, remark, builtin, created_at) VALUES (?, ?, ?, 0, ?)')
+    .run(input.code, input.name, input.remark ?? null, nowIso())
   return conn.prepare('SELECT * FROM dict_types WHERE id = ?').get(Number(info.lastInsertRowid)) as DictTypeRow
 }
 
@@ -696,6 +656,7 @@ export function deleteDictType(id: number): { ok: boolean; message?: string; nam
 export function saveDictItem(input: {
   id?: number
   typeCode: string
+  parentId?: number | null
   label: string
   value: string
   sortNo: number
@@ -707,17 +668,36 @@ export function saveDictItem(input: {
   if (input.id) {
     conn
       .prepare(
-        'UPDATE dict_items SET label = ?, value = ?, sort_no = ?, enabled = ?, remark = ?, updated_at = ? WHERE id = ?'
+        'UPDATE dict_items SET label = ?, value = ?, sort_no = ?, enabled = ?, parent_id = ?, remark = ?, updated_at = ? WHERE id = ?'
       )
-      .run(input.label, input.value, input.sortNo, input.enabled ? 1 : 0, input.remark ?? null, ts, input.id)
+      .run(
+        input.label,
+        input.value,
+        input.sortNo,
+        input.enabled ? 1 : 0,
+        input.parentId ?? null,
+        input.remark ?? null,
+        ts,
+        input.id
+      )
     return conn.prepare('SELECT * FROM dict_items WHERE id = ?').get(input.id) as DictItemRow
   }
   const info = conn
     .prepare(
-      `INSERT INTO dict_items (type_code, label, value, sort_no, enabled, remark, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO dict_items (type_code, parent_id, label, value, sort_no, enabled, remark, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
-    .run(input.typeCode, input.label, input.value, input.sortNo, input.enabled ? 1 : 0, input.remark ?? null, ts, ts)
+    .run(
+      input.typeCode,
+      input.parentId ?? null,
+      input.label,
+      input.value,
+      input.sortNo,
+      input.enabled ? 1 : 0,
+      input.remark ?? null,
+      ts,
+      ts
+    )
   return conn.prepare('SELECT * FROM dict_items WHERE id = ?').get(Number(info.lastInsertRowid)) as DictItemRow
 }
 
@@ -725,6 +705,9 @@ export function deleteDictItem(id: number): DictItemRow | undefined {
   const conn = conn_()
   const row = conn.prepare('SELECT * FROM dict_items WHERE id = ?').get(id) as DictItemRow | undefined
   if (!row) return undefined
-  conn.prepare('DELETE FROM dict_items WHERE id = ?').run(id)
+  conn.transaction(() => {
+    conn.prepare('DELETE FROM dict_items WHERE parent_id = ?').run(id)
+    conn.prepare('DELETE FROM dict_items WHERE id = ?').run(id)
+  })()
   return row
 }

@@ -11,7 +11,6 @@ import {
   createSession,
   deleteAttachments,
   deleteCase,
-  deleteDictGroup,
   deleteDictItem,
   deleteDictType,
   deleteSession,
@@ -19,16 +18,15 @@ import {
   findUserByToken,
   dictOptions,
   getAttachments,
+  getDictItem,
   getCase,
   getPaths,
   initRememberFilePath,
   listAttachments,
   listCases,
-  listDictGroups,
   listDictItems,
   listDictTypes,
   listLogs,
-  saveDictGroup,
   saveDictItem,
   saveDictType,
   stats,
@@ -99,8 +97,6 @@ const ACTION_LABELS: Record<string, string> = {
   upload_attachment: '上传附件',
   delete_attachment: '删除附件',
   export_csv: '导出日志',
-  save_dict_group: '维护字典分组',
-  delete_dict_group: '删除字典分组',
   save_dict_type: '维护字典类型',
   delete_dict_type: '删除字典类型',
   save_dict_item: '维护枚举项',
@@ -372,63 +368,10 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
   })
 
 
-  ipcMain.handle('dict:groups', () => {
+  ipcMain.handle('dict:types', () => {
     try {
       requireUser()
-      return { ok: true, rows: listDictGroups() }
-    } catch (err) {
-      return { ok: false, message: (err as Error).message, rows: [] }
-    }
-  })
-
-  ipcMain.handle(
-    'dict:group:save',
-    (_event, payload: { id?: number; name: string; sortNo?: number; remark?: string | null }) => {
-      try {
-        const user = requireUser()
-        const name = String(payload?.name ?? '').trim()
-        if (!name) return { ok: false, message: '请填写分组名称' }
-        const row = saveDictGroup({ id: payload?.id, name, sortNo: payload?.sortNo ?? 0, remark: payload?.remark ?? null })
-        addLog({
-          userId: user.id,
-          username: user.username,
-          action: 'save_dict_group',
-          targetType: 'dict_group',
-          targetId: row.id,
-          detail: `${payload?.id ? '修改' : '新增'}字典分组 ${row.name}`
-        })
-        return { ok: true, data: row }
-      } catch (err) {
-        const message = (err as Error).message
-        return { ok: false, message: message.includes('UNIQUE') ? '该分组名称已存在' : message }
-      }
-    }
-  )
-
-  ipcMain.handle('dict:group:delete', (_event, payload: { id: number }) => {
-    try {
-      const user = requireUser()
-      const res = deleteDictGroup(Number(payload?.id))
-      if (!res.ok) return { ok: false, message: res.message }
-      addLog({
-        userId: user.id,
-        username: user.username,
-        action: 'delete_dict_group',
-        targetType: 'dict_group',
-        targetId: payload?.id,
-        detail: `删除字典分组 ${res.name ?? ''}`
-      })
-      return { ok: true }
-    } catch (err) {
-      return { ok: false, message: (err as Error).message }
-    }
-  })
-
-  ipcMain.handle('dict:types', (_event, payload?: { groupId?: number }) => {
-    try {
-      requireUser()
-      const groupId = payload?.groupId === undefined ? undefined : Number(payload.groupId)
-      return { ok: true, rows: listDictTypes(Number.isFinite(groupId as number) ? (groupId as number) : undefined) }
+      return { ok: true, rows: listDictTypes() }
     } catch (err) {
       return { ok: false, message: (err as Error).message, rows: [] }
     }
@@ -454,10 +397,7 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
 
   ipcMain.handle(
     'dict:type:save',
-    (
-      _event,
-      payload: { id?: number; code: string; name: string; groupId?: number | null; remark?: string | null }
-    ) => {
+    (_event, payload: { id?: number; code: string; name: string; remark?: string | null }) => {
       try {
         const user = requireUser()
         const name = String(payload?.name ?? '').trim()
@@ -466,13 +406,7 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
         if (!payload?.id && !/^[a-z][a-z0-9_]{1,29}$/.test(code)) {
           return { ok: false, message: '编码需以小写字母开头，仅含小写字母、数字、下划线（2–30 位）' }
         }
-        const row = saveDictType({
-          id: payload?.id,
-          code,
-          name,
-          groupId: payload?.groupId ?? null,
-          remark: payload?.remark ?? null
-        })
+        const row = saveDictType({ id: payload?.id, code, name, remark: payload?.remark ?? null })
         addLog({
           userId: user.id,
           username: user.username,
@@ -516,6 +450,7 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     (_event, payload: {
       id?: number
       typeCode: string
+      parentId?: number | null
       label: string
       value: string
       sortNo: number
@@ -527,9 +462,15 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
         const label = String(payload?.label ?? '').trim()
         const value = String(payload?.value ?? '').trim() || label
         if (!label) return { ok: false, message: '请填写显示名称' }
+        if (payload?.parentId) {
+          const parent = getDictItem(Number(payload.parentId))
+          if (!parent) return { ok: false, message: '上级项不存在' }
+          if (parent.parent_id !== null) return { ok: false, message: '枚举项最多两级' }
+        }
         const row = saveDictItem({
           id: payload?.id,
           typeCode: String(payload?.typeCode ?? ''),
+          parentId: payload?.parentId ?? null,
           label,
           value,
           sortNo: Number(payload?.sortNo ?? 0),

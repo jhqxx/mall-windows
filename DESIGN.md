@@ -66,7 +66,7 @@
 - 工作台读数：`grid-template-columns: repeat(3, minmax(0,1fr)) minmax(0,1.1fr)`，整体随宽度等比拉伸。
 - 双栏面板：`minmax(0,1.5fr) minmax(0,1fr)`，间距 `1rem`。
 - 表格列宽是唯一允许写固定值的地方，而且必须写成数字（Element Plus 对 `width`/`min-width` 做 `parseInt`，传 `"10.5rem"` 会被解析成 10px，整张表被压成一条缝）；列宽不影响缩放，外层容器与栅格负责自适应。
-- 三级维护页（枚举管理）：`grid-template-columns: minmax(8.5rem,11.5rem) minmax(9.5rem,14rem) minmax(0,1fr)`，分组 / 字典 / 明细三列并列；≤ `72rem` 收窄两侧固定列，≤ `56rem` 单列堆叠。左两栏的行内操作按钮**悬浮才出现**（绝对定位覆盖在编码行右侧），避免小窗口里把编码挤掉。
+- 枚举维护页：`grid-template-columns: minmax(11rem,15rem) minmax(0,1fr)`，左字典列表 / 右枚举项树表并列；≤ `56rem` 单列堆叠。列表行内操作按钮**悬浮才出现**（绝对定位覆盖在编码行右侧），避免小窗口里把编码挤掉；枚举项用 `el-table` 的树形行（`row-key` + `tree-props`）承载「父项 → 子项」，两级为上限，表单侧用 `el-tree-select` 展开同一棵树。
 - 表单：`el-row`/`el-col` 百分比栅格，`label-width: 8rem`；附件表列宽用 `min-width` 的 rem 值，窄屏在卡片内横向滚动而不挤压文字。
 - 表情表：列宽全部 `min-width`，表格吃满容器宽度。
 

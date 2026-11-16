@@ -34,23 +34,15 @@ interface Window {
       exportCsv: () => Promise<AnyResult>
     }
     dict: {
-      groups: () => Promise<AnyResult>
-      saveGroup: (payload: { id?: number; name: string; sortNo?: number; remark?: string | null }) => Promise<AnyResult>
-      removeGroup: (payload: { id: number }) => Promise<AnyResult>
-      types: (payload?: { groupId?: number }) => Promise<AnyResult>
+      types: () => Promise<AnyResult>
       items: (payload: { typeCode: string }) => Promise<AnyResult>
       options: (payload: { code: string }) => Promise<AnyResult>
-      saveType: (payload: {
-        id?: number
-        code: string
-        name: string
-        groupId?: number | null
-        remark?: string | null
-      }) => Promise<AnyResult>
+      saveType: (payload: { id?: number; code: string; name: string; remark?: string | null }) => Promise<AnyResult>
       removeType: (payload: { id: number }) => Promise<AnyResult>
       saveItem: (payload: {
         id?: number
         typeCode: string
+        parentId?: number | null
         label: string
         value: string
         sortNo: number

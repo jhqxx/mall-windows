@@ -10,9 +10,18 @@
         <el-row :gutter="24">
           <el-col :span="12">
             <el-form-item label="案件类型" prop="caseType">
-              <el-select v-model="form.caseType" placeholder="请选择案件类型" clearable style="width: 100%">
-                <el-option v-for="item in caseTypes" :key="item" :label="item" :value="item" />
-              </el-select>
+              <el-tree-select
+                v-model="form.caseType"
+                :data="caseTypes"
+                :props="{ label: 'label', children: 'children' }"
+                node-key="value"
+                check-strictly
+                default-expand-all
+                :render-after-expand="false"
+                placeholder="请选择案件类型"
+                clearable
+                style="width: 100%"
+              />
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -192,7 +201,11 @@ const submitting = ref(false)
 const attachments = ref<AttachmentRow[]>([])
 const selectedIds = ref<number[]>([])
 
-const caseTypes = ref<string[]>(['投诉举报', '业务咨询', '违规线索', '服务纠纷', '其他'])
+type DictNode = { label: string; value: string; children?: DictNode[] }
+
+const caseTypes = ref<DictNode[]>(
+  ['投诉举报', '业务咨询', '违规线索', '服务纠纷', '其他'].map((label) => ({ label, value: label }))
+)
 
 function emptyForm() {
   return {
@@ -395,7 +408,7 @@ function resetForm(): void {
 
 async function loadCaseTypes(): Promise<void> {
   const res = await window.api.dict.options({ code: 'case_type' })
-  if (res?.ok && res.rows?.length) caseTypes.value = res.rows.map((row: { label: string }) => row.label)
+  if (res?.ok && res.rows?.length) caseTypes.value = res.rows as DictNode[]
 }
 
 onMounted(() => {
