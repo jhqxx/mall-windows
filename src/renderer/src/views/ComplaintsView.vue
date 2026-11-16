@@ -170,7 +170,53 @@
         </div>
       </template>
       <div v-if="detail" class="detail">
+        <section v-if="!isClue && detail.ParentCode" class="linked">
+          <h3>所属线索</h3>
+          <p class="linked-row">
+            <el-button link type="primary" class="mono" @click="openLinked(detail.ParentCode, 'clue')">
+              {{ detail.ParentCode }}
+            </el-button>
+            <span class="linked-hint">点编号查看线索详情</span>
+          </p>
+        </section>
+
+        <section v-if="isClue" class="linked">
+          <h3>关联信访件（{{ related.length }}）</h3>
+          <el-table v-if="related.length" :data="related" border size="small" class="related-table">
+            <el-table-column prop="OriginalCode" label="原始编号" width="118" class-name="cell-mono" />
+            <el-table-column prop="TargetName" label="被反映人" min-width="110" show-overflow-tooltip />
+            <el-table-column prop="ProblemSummary" label="问题摘要" min-width="150" show-overflow-tooltip />
+            <el-table-column label="状态" width="92">
+              <template #default="{ row }">
+                <span class="pill" :class="statusClass(row)">
+                  {{ row.IsCompleted === 'BJ1001' ? '已办结' : '办理中' }}
+                </span>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="70">
+              <template #default="{ row }">
+                <el-button link type="primary" @click="openLinked(row.OriginalCode, 'letter')">查看</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+          <p v-else class="linked-hint">这条线索下还没有归并的信访件</p>
+        </section>
+
         <section v-for="group in detailGroups" :key="group.title">
+          <h3>{{ group.title }}</h3>
+          <dl>
+            <template v-for="field in group.fields" :key="field.label">
+              <dt>{{ field.label }}</dt>
+              <dd>{{ field.value || '—' }}</dd>
+            </template>
+          </dl>
+        </section>
+      </div>
+    </el-drawer>
+
+    <el-drawer v-model="linkedVisible" :title="linkedTitle" size="46%" append-to-body>
+      <div v-if="linked" class="detail">
+        <section v-for="group in linkedGroups" :key="group.title">
           <h3>{{ group.title }}</h3>
           <dl>
             <template v-for="field in group.fields" :key="field.label">
@@ -224,6 +270,11 @@ const selection = ref<Row[]>([])
 const disposeOptions = ref<Array<{ label: string; value: string }>>([])
 const disposeLabelMap = ref<Record<string, string>>({})
 const detailVisible = ref(false)
+const linkedVisible = ref(false)
+const linked = ref<Record<string, any> | null>(null)
+const linkedKind = ref<'clue' | 'letter'>('clue')
+const related = ref<Array<Record<string, any>>>([])
+const linkedTitle = computed(() => (linkedKind.value === 'clue' ? '线索详情' : '信访详情'))
 const detail = ref<Row | null>(null)
 
 const filter = reactive({
@@ -248,8 +299,7 @@ const targetTypeLabel = (v: string) => targetTypeMap.value[v] ?? v ?? '—'
 const reportFormLabel = (v: string) => reportFormMap[v] ?? v ?? '—'
 const labelOf = (map: Record<string, string>, v: string) => map[v] ?? v ?? '—'
 
-const detailGroups = computed(() => {
-  const row = detail.value ?? {}
+function buildGroups(row: Record<string, any>) {
   const group = (title: string, fields: Array<[string, any]>) => ({
     title,
     fields: fields.map(([label, value]) => ({ label, value: value == null ? '' : String(value) })),
@@ -312,7 +362,10 @@ const detailGroups = computed(() => {
       ['备注', row.Remark],
     ]),
   ]
-})
+}
+
+const detailGroups = computed(() => buildGroups(detail.value ?? {}))
+const linkedGroups = computed(() => buildGroups(linked.value ?? {}))
 
 async function load(): Promise<void> {
   const res = await window.api.complaints.list({
@@ -416,7 +469,29 @@ async function openDetail(row: Row): Promise<void> {
     return
   }
   detail.value = res.data
+  related.value = []
   detailVisible.value = true
+  if (isClue.value) {
+    const letters = await window.api.complaints.letters(res.data.OriginalCode)
+    if (letters?.ok) related.value = letters.data
+  }
+}
+
+function statusClass(row: Record<string, any>): string {
+  if (row.IsCompleted === 'BJ1001') return 'pill-done'
+  if (row.IsOverdue === 'CQ1001') return 'pill-overdue'
+  return 'pill-processing'
+}
+
+async function openLinked(code: string, kind: 'clue' | 'letter'): Promise<void> {
+  const res = await window.api.complaints.get(code)
+  if (!res?.ok) {
+    ElMessage.error(res?.error ?? '加载失败')
+    return
+  }
+  linkedKind.value = kind
+  linked.value = res.data
+  linkedVisible.value = true
 }
 
 function onExport(command: string): void {
@@ -556,6 +631,28 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+.linked {
+  border-bottom: 1px solid var(--rule);
+  padding-bottom: 0.75rem;
+}
+
+.linked-row {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.linked-hint {
+  margin: 0.25rem 0 0;
+  font-size: 0.75rem;
+  color: var(--ink-3);
+}
+
+.related-table {
+  margin-top: 0.5rem;
+}
+
 .page {
   padding: 1.5rem 1.75rem 1.75rem;
   display: flex;

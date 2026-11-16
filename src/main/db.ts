@@ -164,6 +164,8 @@ export function initDb(): void {
   } catch (error) {
     console.error('[db] 种子数据导入失败：', error)
   }
+  const organized = organizeAttachments()
+  if (organized > 0) console.log(`[db] 已将 ${organized} 个附件按原始编号归入子目录`)
   const upgraded = upgradePlainPasswords()
   if (upgraded > 0) console.log(`[db] 已将 ${upgraded} 个明文密码升级为 scrypt 哈希`)
 }
@@ -907,6 +909,14 @@ export function logFacets(): { modules: string[]; types: string[] } {
   return { modules, types }
 }
 
+/** 附件按「原始编号」分目录存放：<附件目录>/<原始编号>/<时间戳>_<随机>.<ext> */
+export function attachmentDir(code: string): string {
+  const safe = String(code || 'unknown').replace(/[^A-Za-z0-9_-]/g, '_')
+  const dir = path.join(getPaths().attachmentsDir, safe)
+  fs.mkdirSync(dir, { recursive: true })
+  return dir
+}
+
 export function copyAttachmentTo(source: string, targetDir: string): string {
   const stamp = now().replace(/[-: ]/g, '')
   const rand = Math.random().toString(16).slice(2, 10)
@@ -914,4 +924,26 @@ export function copyAttachmentTo(source: string, targetDir: string): string {
   const dest = path.join(targetDir, `${stamp}_${rand}${ext}`)
   fs.copyFileSync(source, dest)
   return dest
+}
+
+/** 老数据整理：把平铺在附件目录里的文件按原始编号搬进子目录 */
+export function organizeAttachments(): number {
+  const rows = conn()
+    .prepare('SELECT Id, OriginalCode, FilePath FROM ComplaintAttachment')
+    .all() as unknown as Array<{ Id: number; OriginalCode: string; FilePath: string }>
+  let moved = 0
+  for (const row of rows) {
+    if (!fs.existsSync(row.FilePath)) continue
+    const dir = attachmentDir(row.OriginalCode)
+    if (path.dirname(row.FilePath) === dir) continue
+    const target = path.join(dir, path.basename(row.FilePath))
+    try {
+      if (!fs.existsSync(target)) fs.renameSync(row.FilePath, target)
+      conn().prepare('UPDATE ComplaintAttachment SET FilePath = @target WHERE Id = @id').run({ target, id: row.Id })
+      moved += 1
+    } catch (error) {
+      console.error('[db] 附件归位失败：', row.FilePath, error)
+    }
+  }
+  return moved
 }

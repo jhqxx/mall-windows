@@ -13,6 +13,7 @@ import {
   lettersOfClue,
   changePassword,
   copyAttachmentTo,
+  attachmentDir,
   checkpoint,
   reloadDb,
   deleteAttachments,
@@ -365,7 +366,7 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     'attachment:add',
     (_e, payload: { code: string; files: Array<{ path: string; name: string; size: number; type: string }> }) => {
       const user = requireUser()
-      const dir = getPaths().attachmentsDir
+      const dir = attachmentDir(payload.code)
       const stored = payload.files.map((file) => {
         const target = copyAttachmentTo(file.path, dir)
         return {
