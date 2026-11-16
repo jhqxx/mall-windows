@@ -87,7 +87,11 @@ const LABELS: Record<string, string> = {
   upload_attachment: '上传附件',
   delete_attachment: '删除附件',
   download_attachment: '下载附件',
-  export_csv: '导出日志'
+  export_csv: '导出日志',
+  save_dict_type: '维护字典类型',
+  delete_dict_type: '删除字典类型',
+  save_dict_item: '维护枚举项',
+  delete_dict_item: '删除枚举项'
 }
 
 function actionLabel(value: string): string {

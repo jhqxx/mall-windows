@@ -62,7 +62,7 @@
 import { computed, markRaw, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowDown, DocumentAdd, Files, Odometer, Tickets } from '@element-plus/icons-vue'
+import { ArrowDown, Collection, DocumentAdd, Files, Odometer, Tickets } from '@element-plus/icons-vue'
 import { setUser, session } from '@/stores/session'
 import logoLight from '@/assets/logo-light.png'
 import logoMark from '@/assets/logo-mark.png'
@@ -76,6 +76,7 @@ const navItems = [
   { path: '/dashboard', label: '工作台', icon: markRaw(Odometer) },
   { path: '/cases/new', label: '案件录入', icon: markRaw(DocumentAdd) },
   { path: '/cases', label: '案件列表', icon: markRaw(Files) },
+  { path: '/dicts', label: '枚举管理', icon: markRaw(Collection) },
   { path: '/logs', label: '操作日志', icon: markRaw(Tickets) }
 ]
 
@@ -85,6 +86,7 @@ const titles: Record<string, string> = {
   '/dashboard': '工作台',
   '/cases/new': '案件录入',
   '/cases': '案件列表',
+  '/dicts': '枚举管理',
   '/logs': '操作日志'
 }
 const currentTitle = computed(() => titles[route.path] ?? '工作台')

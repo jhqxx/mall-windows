@@ -1,6 +1,6 @@
 # Mall Desktop
 
-跨平台桌面演示应用（Windows 为主，macOS 同步可用）：**登录 → 案件办理单录入 → 操作日志**，数据全部落本机 SQLite，不依赖任何后端服务。
+跨平台桌面演示应用（Windows 为主，macOS 同步可用）：**登录 → 案件办理单录入 → 枚举管理 → 操作日志**，数据全部落本机 SQLite，不依赖任何后端服务。
 
 ## 界面
 
@@ -11,6 +11,10 @@
 | 案件办理单 | 操作日志 |
 | --- | --- |
 | ![案件办理单](docs/screenshots/form.png) | ![操作日志](docs/screenshots/logs.png) |
+
+| 枚举管理 |
+| --- |
+| ![枚举管理](docs/screenshots/dict.png) |
 
 视觉体系见 [DESIGN.md](DESIGN.md)：港口作业台气质，深水蓝 + 钢灰 + 纸白，发丝线结构，等宽数字，无渐变无阴影。侧栏与登录页使用「蓝宝星球」官方字标（`src/renderer/src/assets/logo-*.png`）。
 
@@ -42,7 +46,8 @@
 
 1. **登录**：`admin / 123456`（首次启动自动种子，scrypt 加盐哈希，绝无明文/MD5）。密码错会记一条 `login_failed` 日志；勾选「记住我」后下次启动自动登录（钥匙串可用时用 `safeStorage` 加密，不可用时降级为 600 权限的令牌文件）。
 2. **案件录入**：六个分组卡片（案件信息 / 超期信息 / 办案人员 / 签批信息 / 其他信息 / 附件管理）+ 条件校验（超期必填原因、办结时间不晚于今天、审核时间不早于一年前）+ 原生附件多选上传/下载/批量删除。
-3. **操作日志**：时间倒序分页表格，动作筛选 + 关键词搜索 + 导出 CSV，成功/失败用不同颜色 tag 区分。
+3. **枚举管理**：左侧字典类型、右侧枚举项的双栏维护页。内置字典（案件类型 / 领导签批 / 签批情况 / 是否）可直接改选项、调排序、启停用；也可以新建自定义字典（编码 + 名称）。**案件录入页的案件类型下拉直接读这张表**，停用某项后新建单据立刻选不到，历史单据不受影响。
+4. **操作日志**：时间倒序分页表格，动作筛选 + 关键词搜索 + 导出 CSV，成功/失败用不同颜色 tag 区分（枚举维护同样留痕）。
 
 数据库是 **SQLite**（Electron 45 内置的 `node:sqlite`，回退 better-sqlite3 原生模块），单文件存在应用数据目录：
 
@@ -51,7 +56,7 @@
 | macOS | `~/Library/Application Support/MallDesktop/app.db` | 同目录 `attachments/` |
 | Windows | `%APPDATA%\MallDesktop\app.db` | 同目录 `attachments\` |
 
-表：`users` / `sessions` / `cases` / `attachments` / `audit_logs`。
+表：`users` / `sessions` / `cases` / `attachments` / `audit_logs` / `dict_types` / `dict_items`。
 
 ## 开发
 
@@ -111,7 +116,7 @@ git tag v0.1.1 && git push origin v0.1.1   # 打 tag：额外把 dmg + exe 挂�
 ```
 src/main/       主进程：窗口、单实例锁、数据层（db.ts + sqlite-driver.ts）、密码哈希（auth.ts）、IPC 注册（ipc.ts）
 src/preload/    contextBridge 白名单 API（contextIsolation: true / nodeIntegration: false）
-src/renderer/   Vue 3 界面：登录、工作台、案件录入、案件列表、操作日志
+src/renderer/   Vue 3 界面：登录、工作台、案件录入、案件列表、枚举管理、操作日志
 scripts/        electron-builder afterPack 钩子（裁掉非当前平台的预编译 .node）
 ```
 

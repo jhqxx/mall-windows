@@ -33,6 +33,23 @@ interface Window {
       actions: () => Promise<AnyResult>
       exportCsv: () => Promise<AnyResult>
     }
+    dict: {
+      types: () => Promise<AnyResult>
+      items: (payload: { typeCode: string }) => Promise<AnyResult>
+      options: (payload: { code: string }) => Promise<AnyResult>
+      saveType: (payload: { id?: number; code: string; name: string; remark?: string | null }) => Promise<AnyResult>
+      removeType: (payload: { id: number }) => Promise<AnyResult>
+      saveItem: (payload: {
+        id?: number
+        typeCode: string
+        label: string
+        value: string
+        sortNo: number
+        enabled: boolean
+        remark?: string | null
+      }) => Promise<AnyResult>
+      removeItem: (payload: { id: number }) => Promise<AnyResult>
+    }
     app: {
       stats: () => Promise<AnyResult>
       meta: () => Promise<AnyResult>

@@ -11,16 +11,23 @@ import {
   createSession,
   deleteAttachments,
   deleteCase,
+  deleteDictItem,
+  deleteDictType,
   deleteSession,
   findUser,
   findUserByToken,
+  dictOptions,
   getAttachments,
   getCase,
   getPaths,
   initRememberFilePath,
   listAttachments,
   listCases,
+  listDictItems,
+  listDictTypes,
   listLogs,
+  saveDictItem,
+  saveDictType,
   stats,
   toSessionUser,
   type CaseInput,
@@ -88,7 +95,11 @@ const ACTION_LABELS: Record<string, string> = {
   delete_case: '删除案件',
   upload_attachment: '上传附件',
   delete_attachment: '删除附件',
-  export_csv: '导出日志'
+  export_csv: '导出日志',
+  save_dict_type: '维护字典类型',
+  delete_dict_type: '删除字典类型',
+  save_dict_item: '维护枚举项',
+  delete_dict_item: '删除枚举项'
 }
 
 function csvCell(value: unknown): string {
@@ -350,6 +361,147 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
         detail: `导出 ${rows.length} 条日志到 ${result.filePath}`
       })
       return { ok: true, count: rows.length, path: result.filePath }
+    } catch (err) {
+      return { ok: false, message: (err as Error).message }
+    }
+  })
+
+
+  ipcMain.handle('dict:types', () => {
+    try {
+      requireUser()
+      return { ok: true, rows: listDictTypes() }
+    } catch (err) {
+      return { ok: false, message: (err as Error).message, rows: [] }
+    }
+  })
+
+  ipcMain.handle('dict:items', (_event, payload: { typeCode: string }) => {
+    try {
+      requireUser()
+      return { ok: true, rows: listDictItems(String(payload?.typeCode ?? '')) }
+    } catch (err) {
+      return { ok: false, message: (err as Error).message, rows: [] }
+    }
+  })
+
+  ipcMain.handle('dict:options', (_event, payload: { code: string }) => {
+    try {
+      requireUser()
+      return { ok: true, rows: dictOptions(String(payload?.code ?? '')) }
+    } catch (err) {
+      return { ok: false, message: (err as Error).message, rows: [] }
+    }
+  })
+
+  ipcMain.handle(
+    'dict:type:save',
+    (_event, payload: { id?: number; code: string; name: string; remark?: string | null }) => {
+      try {
+        const user = requireUser()
+        const name = String(payload?.name ?? '').trim()
+        if (!name) return { ok: false, message: '请填写字典名称' }
+        const code = String(payload?.code ?? '').trim()
+        if (!payload?.id && !/^[a-z][a-z0-9_]{1,29}$/.test(code)) {
+          return { ok: false, message: '编码需以小写字母开头，仅含小写字母、数字、下划线（2–30 位）' }
+        }
+        const row = saveDictType({ id: payload?.id, code, name, remark: payload?.remark ?? null })
+        addLog({
+          userId: user.id,
+          username: user.username,
+          action: 'save_dict_type',
+          targetType: 'dict_type',
+          targetId: row.id,
+          detail: `${payload?.id ? '修改' : '新增'}字典 ${row.name}（${row.code}）`
+        })
+        return { ok: true, data: row }
+      } catch (err) {
+        const message = (err as Error).message
+        return {
+          ok: false,
+          message: message.includes('UNIQUE') ? '该编码已被占用' : message
+        }
+      }
+    }
+  )
+
+  ipcMain.handle('dict:type:delete', (_event, payload: { id: number }) => {
+    try {
+      const user = requireUser()
+      const res = deleteDictType(Number(payload?.id))
+      if (!res.ok) return { ok: false, message: res.message }
+      addLog({
+        userId: user.id,
+        username: user.username,
+        action: 'delete_dict_type',
+        targetType: 'dict_type',
+        targetId: payload?.id,
+        detail: `删除字典 ${res.name ?? ''}`
+      })
+      return { ok: true }
+    } catch (err) {
+      return { ok: false, message: (err as Error).message }
+    }
+  })
+
+  ipcMain.handle(
+    'dict:item:save',
+    (_event, payload: {
+      id?: number
+      typeCode: string
+      label: string
+      value: string
+      sortNo: number
+      enabled: boolean
+      remark?: string | null
+    }) => {
+      try {
+        const user = requireUser()
+        const label = String(payload?.label ?? '').trim()
+        const value = String(payload?.value ?? '').trim() || label
+        if (!label) return { ok: false, message: '请填写显示名称' }
+        const row = saveDictItem({
+          id: payload?.id,
+          typeCode: String(payload?.typeCode ?? ''),
+          label,
+          value,
+          sortNo: Number(payload?.sortNo ?? 0),
+          enabled: payload?.enabled !== false,
+          remark: payload?.remark ?? null
+        })
+        addLog({
+          userId: user.id,
+          username: user.username,
+          action: 'save_dict_item',
+          targetType: 'dict_item',
+          targetId: row.id,
+          detail: `${payload?.id ? '修改' : '新增'}枚举项 ${row.type_code} / ${row.label}`
+        })
+        return { ok: true, data: row }
+      } catch (err) {
+        const message = (err as Error).message
+        return {
+          ok: false,
+          message: message.includes('UNIQUE') ? '同一字典下已存在相同的存储值' : message
+        }
+      }
+    }
+  )
+
+  ipcMain.handle('dict:item:delete', (_event, payload: { id: number }) => {
+    try {
+      const user = requireUser()
+      const row = deleteDictItem(Number(payload?.id))
+      if (!row) return { ok: false, message: '枚举项不存在' }
+      addLog({
+        userId: user.id,
+        username: user.username,
+        action: 'delete_dict_item',
+        targetType: 'dict_item',
+        targetId: row.id,
+        detail: `删除枚举项 ${row.type_code} / ${row.label}`
+      })
+      return { ok: true }
     } catch (err) {
       return { ok: false, message: (err as Error).message }
     }

@@ -192,7 +192,7 @@ const submitting = ref(false)
 const attachments = ref<AttachmentRow[]>([])
 const selectedIds = ref<number[]>([])
 
-const caseTypes = ['投诉举报', '业务咨询', '违规线索', '服务纠纷', '其他']
+const caseTypes = ref<string[]>(['投诉举报', '业务咨询', '违规线索', '服务纠纷', '其他'])
 
 function emptyForm() {
   return {
@@ -393,7 +393,15 @@ function resetForm(): void {
   selectedIds.value = []
 }
 
-onMounted(loadPending)
+async function loadCaseTypes(): Promise<void> {
+  const res = await window.api.dict.options({ code: 'case_type' })
+  if (res?.ok && res.rows?.length) caseTypes.value = res.rows.map((row: { label: string }) => row.label)
+}
+
+onMounted(() => {
+  loadCaseTypes()
+  loadPending()
+})
 </script>
 
 <style scoped>

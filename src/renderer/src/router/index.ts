@@ -13,6 +13,7 @@ const router = createRouter({
         { path: 'dashboard', name: 'dashboard', component: () => import('@/views/DashboardView.vue') },
         { path: 'cases/new', name: 'case-form', component: () => import('@/views/CaseFormView.vue') },
         { path: 'cases', name: 'case-list', component: () => import('@/views/CaseListView.vue') },
+        { path: 'dicts', name: 'dicts', component: () => import('@/views/DictView.vue') },
         { path: 'logs', name: 'logs', component: () => import('@/views/LogsView.vue') }
       ]
     },

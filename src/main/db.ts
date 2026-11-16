@@ -64,6 +64,28 @@ export type CaseInput = {
   remark: string | null
 }
 
+export type DictTypeRow = {
+  id: number
+  code: string
+  name: string
+  remark: string | null
+  builtin: number
+  created_at: string
+  item_count: number
+}
+
+export type DictItemRow = {
+  id: number
+  type_code: string
+  label: string
+  value: string
+  sort_no: number
+  enabled: number
+  remark: string | null
+  created_at: string
+  updated_at: string
+}
+
 let db: SqliteHandle | null = null
 
 const MIGRATIONS: string[] = [
@@ -121,7 +143,28 @@ const MIGRATIONS: string[] = [
     machine TEXT,
     result TEXT NOT NULL DEFAULT 'success',
     created_at TEXT NOT NULL
-  );`
+  );`,
+  `CREATE TABLE IF NOT EXISTS dict_types (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    code TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL,
+    remark TEXT,
+    builtin INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL
+  );`,
+  `CREATE TABLE IF NOT EXISTS dict_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    type_code TEXT NOT NULL,
+    label TEXT NOT NULL,
+    value TEXT NOT NULL,
+    sort_no INTEGER NOT NULL DEFAULT 0,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    remark TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE (type_code, value)
+  );`,
+  `CREATE INDEX IF NOT EXISTS idx_dict_items_type ON dict_items (type_code, sort_no);`
 ]
 
 export const nowIso = (): string => new Date().toISOString()
@@ -182,6 +225,33 @@ function seed(): void {
          VALUES (?, ?, ?, ?, ?, ?)`
       )
       .run('admin', hash, salt, '管理员', 'admin', nowIso())
+  }
+  seedDictionaries(conn)
+}
+
+// 内置字典：与表单里的下拉项一一对应，可改列表但不能删除类型本身。
+const DICT_SEEDS: { code: string; name: string; items: string[] }[] = [
+  { code: 'case_type', name: '案件类型', items: ['投诉举报', '业务咨询', '违规线索', '服务纠纷', '其他'] },
+  { code: 'leader_approval', name: '领导签批', items: ['同意', '不同意', '待签批'] },
+  { code: 'approval_status', name: '签批情况', items: ['已签批', '部分签批', '未签批'] },
+  { code: 'yes_no', name: '是否', items: ['是', '否'] }
+]
+
+function seedDictionaries(conn: SqliteHandle): void {
+  const ts = nowIso()
+  const insertType = conn.prepare(
+    `INSERT INTO dict_types (code, name, remark, builtin, created_at)
+     VALUES (?, ?, ?, 1, ?)
+     ON CONFLICT(code) DO NOTHING`
+  )
+  const insertItem = conn.prepare(
+    `INSERT INTO dict_items (type_code, label, value, sort_no, enabled, remark, created_at, updated_at)
+     VALUES (?, ?, ?, ?, 1, NULL, ?, ?)
+     ON CONFLICT(type_code, value) DO NOTHING`
+  )
+  for (const dict of DICT_SEEDS) {
+    insertType.run(dict.code, dict.name, '系统内置字典', ts)
+    dict.items.forEach((label, index) => insertItem.run(dict.code, label, label, index + 1, ts, ts))
   }
 }
 
@@ -484,4 +554,94 @@ export function stats(): { cases: number; attachments: number; logs: number; dri
   const a = conn.prepare('SELECT COUNT(*) AS n FROM attachments').get() as { n: number }
   const l = conn.prepare('SELECT COUNT(*) AS n FROM audit_logs').get() as { n: number }
   return { cases: c.n, attachments: a.n, logs: l.n, driver: conn.driver }
+}
+
+export function listDictTypes(): DictTypeRow[] {
+  return conn_()
+    .prepare(
+      `SELECT t.*, (SELECT COUNT(*) FROM dict_items i WHERE i.type_code = t.code) AS item_count
+       FROM dict_types t
+       ORDER BY t.builtin DESC, t.id ASC`
+    )
+    .all() as DictTypeRow[]
+}
+
+export function listDictItems(typeCode: string): DictItemRow[] {
+  return conn_()
+    .prepare('SELECT * FROM dict_items WHERE type_code = ? ORDER BY sort_no ASC, id ASC')
+    .all(typeCode) as DictItemRow[]
+}
+
+/** 表单下拉用：只取启用项，按排序号升序 */
+export function dictOptions(code: string): { label: string; value: string }[] {
+  return conn_()
+    .prepare(
+      'SELECT label, value FROM dict_items WHERE type_code = ? AND enabled = 1 ORDER BY sort_no ASC, id ASC'
+    )
+    .all(code) as { label: string; value: string }[]
+}
+
+export function saveDictType(input: {
+  id?: number
+  code: string
+  name: string
+  remark?: string | null
+}): DictTypeRow {
+  const conn = conn_()
+  if (input.id) {
+    conn.prepare('UPDATE dict_types SET name = ?, remark = ? WHERE id = ?').run(input.name, input.remark ?? null, input.id)
+    return conn.prepare('SELECT * FROM dict_types WHERE id = ?').get(input.id) as DictTypeRow
+  }
+  const info = conn
+    .prepare('INSERT INTO dict_types (code, name, remark, builtin, created_at) VALUES (?, ?, ?, 0, ?)')
+    .run(input.code, input.name, input.remark ?? null, nowIso())
+  return conn.prepare('SELECT * FROM dict_types WHERE id = ?').get(Number(info.lastInsertRowid)) as DictTypeRow
+}
+
+export function deleteDictType(id: number): { ok: boolean; message?: string; name?: string } {
+  const conn = conn_()
+  const row = conn.prepare('SELECT * FROM dict_types WHERE id = ?').get(id) as DictTypeRow | undefined
+  if (!row) return { ok: false, message: '字典不存在' }
+  if (row.builtin) return { ok: false, message: '内置字典用于表单下拉，不可删除' }
+  conn.transaction(() => {
+    conn.prepare('DELETE FROM dict_items WHERE type_code = ?').run(row.code)
+    conn.prepare('DELETE FROM dict_types WHERE id = ?').run(id)
+  })()
+  return { ok: true, name: row.name }
+}
+
+export function saveDictItem(input: {
+  id?: number
+  typeCode: string
+  label: string
+  value: string
+  sortNo: number
+  enabled: boolean
+  remark?: string | null
+}): DictItemRow {
+  const conn = conn_()
+  const ts = nowIso()
+  if (input.id) {
+    conn
+      .prepare(
+        'UPDATE dict_items SET label = ?, value = ?, sort_no = ?, enabled = ?, remark = ?, updated_at = ? WHERE id = ?'
+      )
+      .run(input.label, input.value, input.sortNo, input.enabled ? 1 : 0, input.remark ?? null, ts, input.id)
+    return conn.prepare('SELECT * FROM dict_items WHERE id = ?').get(input.id) as DictItemRow
+  }
+  const info = conn
+    .prepare(
+      `INSERT INTO dict_items (type_code, label, value, sort_no, enabled, remark, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+    .run(input.typeCode, input.label, input.value, input.sortNo, input.enabled ? 1 : 0, input.remark ?? null, ts, ts)
+  return conn.prepare('SELECT * FROM dict_items WHERE id = ?').get(Number(info.lastInsertRowid)) as DictItemRow
+}
+
+export function deleteDictItem(id: number): DictItemRow | undefined {
+  const conn = conn_()
+  const row = conn.prepare('SELECT * FROM dict_items WHERE id = ?').get(id) as DictItemRow | undefined
+  if (!row) return undefined
+  conn.prepare('DELETE FROM dict_items WHERE id = ?').run(id)
+  return row
 }
