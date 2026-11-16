@@ -2,7 +2,7 @@
   <div class="login">
     <aside class="cover">
       <ParticleField />
-      <ParticleTitle class="cover-title" :lines="['案件办理', '桌面终端']" />
+      <ParticleTitle class="cover-title" :lines="['信访管理', '桌面终端']" />
 
       <header class="cover-head">
         <img class="logo" :src="logoLight" alt="蓝宝星球" />
@@ -17,7 +17,7 @@
       <div class="pane-inner">
         <header class="pane-head">
           <h2>账号登录</h2>
-          <p class="tip mono">admin / 123456</p>
+          <p class="tip mono">默认账号 admin / admin123</p>
         </header>
 
         <el-form
@@ -41,7 +41,6 @@
               @keyup.enter="submit"
             />
           </el-form-item>
-          <el-checkbox v-model="form.remember">记住我</el-checkbox>
           <el-button type="primary" class="login-button" :loading="loading" @click="submit">
             登录
           </el-button>
@@ -67,7 +66,7 @@ const formRef = ref<FormInstance>()
 const loading = ref(false)
 const version = ref('0.1.0')
 
-const form = reactive({ username: 'admin', password: '123456', remember: false })
+const form = reactive({ username: 'admin', password: 'admin123' })
 
 const rules: FormRules = {
   username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
@@ -79,12 +78,6 @@ onMounted(async () => {
   if (meta?.ok) {
     version.value = meta.version
   }
-  const auto = await window.api.auth.auto()
-  if (auto?.ok && auto.user) {
-    setUser(auto.user)
-    ElMessage.success(`欢迎回来，${auto.user.displayName}`)
-    router.replace((route.query.redirect as string) || '/dashboard')
-  }
 })
 
 async function submit(): Promise<void> {
@@ -95,16 +88,15 @@ async function submit(): Promise<void> {
   try {
     const res = await window.api.auth.login({
       username: form.username,
-      password: form.password,
-      remember: form.remember
+      password: form.password
     })
     if (!res.ok) {
-      ElMessage.error(res.message || '登录失败')
+      ElMessage.error(res.error || '登录失败')
       return
     }
-    setUser(res.user)
+    setUser(res.data)
     ElMessage.success('登录成功')
-    router.replace((route.query.redirect as string) || '/dashboard')
+    router.replace((route.query.redirect as string) || '/home')
   } finally {
     loading.value = false
   }

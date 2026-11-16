@@ -1,5 +1,5 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
-import { session, setUser } from '@/stores/session'
+import { isAdmin, session, setUser } from '@/stores/session'
 
 const router = createRouter({
   history: createWebHashHistory(),
@@ -8,35 +8,43 @@ const router = createRouter({
     {
       path: '/',
       component: () => import('@/layout/AppLayout.vue'),
-      redirect: '/dashboard',
+      redirect: '/home',
       children: [
-        { path: 'dashboard', name: 'dashboard', component: () => import('@/views/DashboardView.vue') },
-        { path: 'cases/new', name: 'case-form', component: () => import('@/views/CaseFormView.vue') },
-        { path: 'cases', name: 'case-list', component: () => import('@/views/CaseListView.vue') },
+        { path: 'home', name: 'home', component: () => import('@/views/HomeView.vue') },
+        { path: 'complaints', name: 'complaints', component: () => import('@/views/ComplaintsView.vue') },
+        { path: 'complaints/new', name: 'complaint-new', component: () => import('@/views/ComplaintFormView.vue') },
+        {
+          path: 'complaints/:code/edit',
+          name: 'complaint-edit',
+          component: () => import('@/views/ComplaintFormView.vue'),
+        },
         { path: 'dicts', name: 'dicts', component: () => import('@/views/DictView.vue') },
-        { path: 'logs', name: 'logs', component: () => import('@/views/LogsView.vue') }
-      ]
+        { path: 'users', name: 'users', component: () => import('@/views/UsersView.vue'), meta: { admin: true } },
+        { path: 'logs', name: 'logs', component: () => import('@/views/LogsView.vue'), meta: { admin: true } },
+      ],
     },
-    { path: '/:pathMatch(.*)*', redirect: '/dashboard' }
-  ]
+    { path: '/:pathMatch(.*)*', redirect: '/home' },
+  ],
 })
 
 let bootstrapped = false
 
 router.beforeEach(async (to) => {
   if (to.path === '/login') {
-    return session.user ? '/dashboard' : true
+    return session.user ? '/home' : true
   }
-  if (session.user) return true
-  if (!bootstrapped) {
-    bootstrapped = true
-    const res = await window.api.auth.current()
-    if (res?.ok && res.user) {
-      setUser(res.user)
-      return true
+  if (!session.user) {
+    if (!bootstrapped) {
+      bootstrapped = true
+      const res = await window.api.auth.current()
+      if (res?.ok && res.data) {
+        setUser(res.data)
+      }
     }
+    if (!session.user) return { path: '/login', query: { redirect: to.fullPath } }
   }
-  return { path: '/login', query: { redirect: to.fullPath } }
+  if (to.meta.admin && !isAdmin()) return '/home'
+  return true
 })
 
 export default router

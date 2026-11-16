@@ -1,6 +1,6 @@
 {
-  "name": "mall-desktop",
-  "version": "0.1.1",
+  "name": "petition-desktop",
+  "version": "0.2.0",
   "description": "Mall Desktop demo (Electron + Vue3 + Element Plus + SQLite)",
   "main": "./out/main/index.js",
   "author": "lbxq",

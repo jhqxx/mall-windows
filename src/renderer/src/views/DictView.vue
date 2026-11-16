@@ -1,153 +1,99 @@
 <template>
   <div class="page">
-    <h2 class="page-title">枚举管理</h2>
-    <p class="page-subtitle">一个字典下最多两层：父项 → 子项；表单里对应树形下拉</p>
+    <header class="page-head">
+      <div>
+        <h1 class="page-title">基础字典</h1>
+        <p class="page-subtitle">{{ classes.length }} 个字典分类 · {{ totalItems }} 个字典项</p>
+      </div>
+    </header>
 
-    <div class="dict-layout">
-      <el-card class="section-card type-card" shadow="never">
-        <template #header>
-          <div class="card-head">
-            <span class="section-title">字典</span>
-            <el-button link type="primary" :icon="Plus" @click="openTypeDialog()">新增</el-button>
-          </div>
-        </template>
-
-        <ul class="pick-list">
+    <div class="layout">
+      <section class="pane pane-left">
+        <header class="pane-head">
+          <span class="pane-title">字典分类</span>
+          <el-button link type="primary" :icon="Plus" @click="openClassCreate">新增</el-button>
+        </header>
+        <ul class="class-list">
           <li
-            v-for="item in types"
-            :key="item.id"
-            class="pick-item"
-            :class="{ active: item.code === activeCode }"
-            @click="selectType(item.code)"
+            v-for="item in classes"
+            :key="item.Id"
+            :class="['class-item', { active: item.Id === activeId }]"
+            @click="selectClass(item.Id)"
           >
-            <div class="pick-main">
-              <span class="pick-name">{{ item.name }}</span>
-              <span class="pick-count mono">{{ item.item_count }}</span>
+            <div class="class-main">
+              <span class="class-name">{{ item.ClassName }}</span>
+              <span class="class-count mono">{{ item.itemCount }}</span>
             </div>
-            <div class="pick-sub">
-              <span class="pick-meta mono">{{ item.code }}</span>
-              <span class="pick-ops">
-                <el-tag v-if="item.builtin" size="small" effect="plain">内置</el-tag>
-                <el-button v-else link type="danger" @click.stop="removeType(item)">删除</el-button>
-              </span>
+            <span class="class-desc">{{ item.Description || '—' }}</span>
+            <div class="class-actions">
+              <el-button link type="primary" @click.stop="openClassEdit(item)">编辑</el-button>
+              <el-button link type="danger" @click.stop="removeClass(item)">删除</el-button>
             </div>
           </li>
-          <li v-if="!types.length" class="pick-empty mono">NO DICTIONARY</li>
+          <li v-if="!classes.length" class="class-empty">暂无字典分类</li>
         </ul>
-      </el-card>
+      </section>
 
-      <el-card class="section-card item-card" shadow="never">
-        <template #header>
-          <div class="card-head">
-            <div class="card-title">
-              <span class="section-title">{{ activeType?.name || '枚举项' }}</span>
-              <span v-if="activeType" class="hint mono">{{ activeType.code }}</span>
-            </div>
-            <div class="card-actions">
-              <el-button :icon="Refresh" @click="loadItems">刷新</el-button>
-              <el-button type="primary" :icon="Plus" :disabled="!activeType" @click="openItemDialog()">
-                新增父项
-              </el-button>
-            </div>
-          </div>
-        </template>
-
-        <el-table
-          v-loading="loading"
-          :data="items"
-          row-key="id"
-          :tree-props="{ children: 'children' }"
-          default-expand-all
-          border
-          stripe
-        >
-          <el-table-column label="显示名称" min-width="190">
-            <template #default="{ row }">
-              <div class="cell-label">{{ row.label }}</div>
-              <div v-if="row.remark" class="cell-note">{{ row.remark }}</div>
-            </template>
+      <section class="pane pane-right">
+        <header class="pane-head">
+          <span class="pane-title">{{ activeClass?.ClassName || '字典项' }}</span>
+          <el-button type="primary" size="small" :icon="Plus" :disabled="!activeId" @click="openItemCreate">
+            新增字典项
+          </el-button>
+        </header>
+        <el-table :data="items" border stripe size="small">
+          <el-table-column prop="ItemKey" label="键值" min-width="120" class-name="cell-mono" />
+          <el-table-column prop="ItemValue" label="显示值" min-width="160" />
+          <el-table-column prop="SortOrder" label="排序" width="70" align="center" />
+          <el-table-column prop="Description" label="说明" min-width="180" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.Description || '—' }}</template>
           </el-table-column>
-          <el-table-column prop="value" label="存储值" min-width="150" class-name="cell-mono" />
-          <el-table-column prop="sort_no" label="排序" width="60" align="center" class-name="cell-mono" />
-          <el-table-column label="状态" width="70" align="center">
+          <el-table-column label="操作" width="120">
             <template #default="{ row }">
-              <el-switch
-                :model-value="row.enabled === 1"
-                size="small"
-                @change="(value: string | number | boolean) => toggleItem(row, Boolean(value))"
-              />
-            </template>
-          </el-table-column>
-          <el-table-column label="操作" width="196" class-name="cell-actions">
-            <template #default="{ row }">
-              <el-button v-if="row.parent_id === null" link type="primary" @click="openItemDialog(undefined, row)">
-                子项
-              </el-button>
-              <el-button link type="primary" @click="openItemDialog(row)">编辑</el-button>
+              <el-button link type="primary" @click="openItemEdit(row)">编辑</el-button>
               <el-button link type="danger" @click="removeItem(row)">删除</el-button>
             </template>
           </el-table-column>
           <template #empty>
-            <div class="empty-state"><span>EMPTY</span><p>该字典还没有枚举项</p></div>
+            <div class="empty">该字典下暂无字典项</div>
           </template>
         </el-table>
-
-        <p class="table-foot">共 {{ totalItems }} 项（含子项）</p>
-      </el-card>
+      </section>
     </div>
 
-    <el-dialog v-model="typeDialog.visible" :title="typeDialog.id ? '编辑字典' : '新增字典'" width="30rem">
-      <el-form ref="typeFormRef" :model="typeDialog.form" :rules="typeRules" label-width="6.5rem">
-        <el-form-item label="字典名称" prop="name">
-          <el-input v-model="typeDialog.form.name" maxlength="30" placeholder="例如：业务科室" />
+    <el-dialog v-model="classDialog" :title="classForm.id ? '编辑字典分类' : '新增字典分类'" width="28rem" destroy-on-close>
+      <el-form :model="classForm" label-width="5.5rem">
+        <el-form-item label="字典名称" required>
+          <el-input v-model="classForm.className" />
         </el-form-item>
-        <el-form-item label="字典编码" prop="code">
-          <el-input
-            v-model="typeDialog.form.code"
-            class="mono"
-            maxlength="30"
-            :disabled="Boolean(typeDialog.id)"
-            placeholder="小写字母开头，如 dept_type"
-          />
-        </el-form-item>
-        <el-form-item label="备注">
-          <el-input v-model="typeDialog.form.remark" type="textarea" :rows="2" maxlength="120" />
+        <el-form-item label="说明">
+          <el-input v-model="classForm.description" type="textarea" :rows="2" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="typeDialog.visible = false">取消</el-button>
-        <el-button type="primary" :loading="typeDialog.saving" @click="submitType">保存</el-button>
+        <el-button @click="classDialog = false">取消</el-button>
+        <el-button type="primary" :loading="saving" @click="submitClass">保存</el-button>
       </template>
     </el-dialog>
 
-    <el-dialog
-      v-model="itemDialog.visible"
-      :title="dialogTitle"
-      width="30rem"
-    >
-      <el-form ref="itemFormRef" :model="itemDialog.form" :rules="itemRules" label-width="6.5rem">
-        <el-form-item v-if="itemDialog.parentLabel" label="上级项">
-          <span class="parent-ref">{{ itemDialog.parentLabel }}</span>
+    <el-dialog v-model="itemDialog" :title="itemForm.id ? '编辑字典项' : '新增字典项'" width="30rem" destroy-on-close>
+      <el-form :model="itemForm" label-width="5.5rem">
+        <el-form-item label="键值" required>
+          <el-input v-model="itemForm.itemKey" placeholder="如 XS1001" />
         </el-form-item>
-        <el-form-item label="显示名称" prop="label">
-          <el-input v-model="itemDialog.form.label" maxlength="40" placeholder="下拉框里看到的文字" />
-        </el-form-item>
-        <el-form-item label="存储值" prop="value">
-          <el-input v-model="itemDialog.form.value" class="mono" maxlength="40" placeholder="留空则与名称一致" />
+        <el-form-item label="显示值" required>
+          <el-input v-model="itemForm.itemValue" placeholder="如 基层报送" />
         </el-form-item>
         <el-form-item label="排序">
-          <el-input-number v-model="itemDialog.form.sortNo" :min="0" :max="9999" controls-position="right" />
+          <el-input-number v-model="itemForm.sortOrder" :min="0" :max="9999" controls-position="right" />
         </el-form-item>
-        <el-form-item label="启用">
-          <el-switch v-model="itemDialog.form.enabled" />
-        </el-form-item>
-        <el-form-item label="备注">
-          <el-input v-model="itemDialog.form.remark" type="textarea" :rows="2" maxlength="120" />
+        <el-form-item label="说明">
+          <el-input v-model="itemForm.description" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="itemDialog.visible = false">取消</el-button>
-        <el-button type="primary" :loading="itemDialog.saving" @click="submitItem">保存</el-button>
+        <el-button @click="itemDialog = false">取消</el-button>
+        <el-button type="primary" :loading="saving" @click="submitItem">保存</el-button>
       </template>
     </el-dialog>
   </div>
@@ -156,436 +102,299 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Refresh } from '@element-plus/icons-vue'
-import type { FormInstance, FormRules } from 'element-plus'
+import { Plus } from '@element-plus/icons-vue'
 
-type DictType = {
-  id: number
-  code: string
-  name: string
-  remark: string | null
-  builtin: number
-  item_count: number
+type DictClass = {
+  Id: number
+  ClassName: string
+  Description: string | null
+  itemCount: number
 }
 
 type DictItem = {
-  id: number
-  type_code: string
-  parent_id: number | null
-  label: string
-  value: string
-  sort_no: number
-  enabled: number
-  remark: string | null
-  children?: DictItem[]
+  Id: number
+  ClassId: number
+  ItemKey: string
+  ItemValue: string
+  SortOrder: number
+  Description: string | null
 }
 
-const types = ref<DictType[]>([])
+const classes = ref<DictClass[]>([])
 const items = ref<DictItem[]>([])
-const activeCode = ref('')
-const loading = ref(false)
+const activeId = ref<number | null>(null)
+const classDialog = ref(false)
+const itemDialog = ref(false)
+const saving = ref(false)
 
-const activeType = computed(() => types.value.find((item) => item.code === activeCode.value))
-const totalItems = computed(() =>
-  items.value.reduce((sum, row) => sum + 1 + (row.children?.length ?? 0), 0)
-)
+const classForm = reactive({ id: 0, className: '', description: '' })
+const itemForm = reactive({ id: 0, itemKey: '', itemValue: '', sortOrder: 0, description: '' })
 
-const typeFormRef = ref<FormInstance>()
-const itemFormRef = ref<FormInstance>()
+const activeClass = computed(() => classes.value.find((item) => item.Id === activeId.value) ?? null)
+const totalItems = computed(() => classes.value.reduce((sum, item) => sum + item.itemCount, 0))
 
-const typeRules: FormRules = {
-  name: [{ required: true, message: '请填写字典名称', trigger: 'blur' }],
-  code: [
-    { required: true, message: '请填写字典编码', trigger: 'blur' },
-    {
-      pattern: /^[a-z][a-z0-9_]{1,29}$/,
-      message: '小写字母开头，可含小写字母、数字、下划线',
-      trigger: 'blur'
-    }
-  ]
-}
-
-const itemRules: FormRules = {
-  label: [{ required: true, message: '请填写显示名称', trigger: 'blur' }]
-}
-
-const typeDialog = reactive({
-  visible: false,
-  saving: false,
-  id: 0,
-  form: { code: '', name: '', remark: '' }
-})
-
-const itemDialog = reactive({
-  visible: false,
-  saving: false,
-  id: 0,
-  parentId: null as number | null,
-  parentLabel: '',
-  form: { label: '', value: '', sortNo: 0, enabled: true, remark: '' }
-})
-
-const dialogTitle = computed(() => {
-  if (itemDialog.id) return '编辑枚举项'
-  return itemDialog.parentId ? '新增子项' : '新增父项'
-})
-
-async function loadTypes(): Promise<void> {
-  const res = await window.api.dict.types()
+async function loadClasses(keepId?: number): Promise<void> {
+  const res = await window.api.dict.classes()
   if (!res?.ok) return
-  types.value = res.rows
-  if (!types.value.some((item) => item.code === activeCode.value)) {
-    activeCode.value = types.value[0]?.code ?? ''
+  classes.value = res.data
+  const next = keepId ?? activeId.value ?? res.data[0]?.Id ?? null
+  if (next) selectClass(next)
+  else {
+    activeId.value = null
+    items.value = []
   }
 }
 
 async function loadItems(): Promise<void> {
-  if (!activeCode.value) {
-    items.value = []
-    return
-  }
-  loading.value = true
-  try {
-    const res = await window.api.dict.items({ typeCode: activeCode.value })
-    if (res?.ok) items.value = res.rows
-  } finally {
-    loading.value = false
-  }
+  if (!activeId.value) return
+  const res = await window.api.dict.items(activeId.value)
+  if (res?.ok) items.value = res.data
 }
 
-async function refreshAll(): Promise<void> {
-  await loadTypes()
-  await loadItems()
-}
-
-function selectType(code: string): void {
-  activeCode.value = code
+function selectClass(id: number): void {
+  activeId.value = id
   loadItems()
 }
 
-function openTypeDialog(row?: DictType): void {
-  typeDialog.id = row?.id ?? 0
-  typeDialog.form = row
-    ? { code: row.code, name: row.name, remark: row.remark ?? '' }
-    : { code: '', name: '', remark: '' }
-  typeDialog.visible = true
+function openClassCreate(): void {
+  Object.assign(classForm, { id: 0, className: '', description: '' })
+  classDialog.value = true
 }
 
-async function submitType(): Promise<void> {
-  if (!typeFormRef.value) return
-  const valid = await typeFormRef.value.validate().catch(() => false)
-  if (!valid) return
-  typeDialog.saving = true
+function openClassEdit(row: DictClass): void {
+  Object.assign(classForm, { id: row.Id, className: row.ClassName, description: row.Description ?? '' })
+  classDialog.value = true
+}
+
+async function submitClass(): Promise<void> {
+  if (!classForm.className.trim()) {
+    ElMessage.warning('字典名称不能为空')
+    return
+  }
+  saving.value = true
   try {
-    const res = await window.api.dict.saveType({
-      id: typeDialog.id || undefined,
-      code: typeDialog.form.code.trim(),
-      name: typeDialog.form.name.trim(),
-      remark: typeDialog.form.remark.trim()
+    const res = await window.api.dict.saveClass({
+      id: classForm.id || undefined,
+      className: classForm.className.trim(),
+      description: classForm.description,
     })
     if (!res?.ok) {
-      ElMessage.error(res?.message || '保存失败')
+      ElMessage.error(res?.error ?? '保存失败')
       return
     }
     ElMessage.success('已保存')
-    typeDialog.visible = false
-    if (res.data?.code) activeCode.value = res.data.code
-    await refreshAll()
+    classDialog.value = false
+    await loadClasses(classForm.id || res.data)
   } finally {
-    typeDialog.saving = false
+    saving.value = false
   }
 }
 
-async function removeType(row: DictType): Promise<void> {
+async function removeClass(row: DictClass): Promise<void> {
   try {
-    await ElMessageBox.confirm(`删除字典「${row.name}」及其下全部枚举项？`, '删除确认', {
-      confirmButtonText: '删除',
-      cancelButtonText: '取消',
-      type: 'warning'
+    await ElMessageBox.confirm(`删除字典「${row.ClassName}」会同时删除其下 ${row.itemCount} 个字典项，确认继续？`, '删除字典', {
+      type: 'warning',
     })
   } catch {
     return
   }
-  const res = await window.api.dict.removeType({ id: row.id })
+  const res = await window.api.dict.removeClass(row.Id)
   if (!res?.ok) {
-    ElMessage.error(res?.message || '删除失败')
+    ElMessage.error(res?.error ?? '删除失败')
     return
   }
   ElMessage.success('已删除')
-  await refreshAll()
+  if (activeId.value === row.Id) activeId.value = null
+  await loadClasses()
 }
 
-function openItemDialog(row?: DictItem, parent?: DictItem): void {
-  itemDialog.id = row?.id ?? 0
-  itemDialog.parentId = row?.parent_id ?? parent?.id ?? null
-  itemDialog.parentLabel = parent?.label ?? ''
-  itemDialog.form = row
-    ? {
-        label: row.label,
-        value: row.value,
-        sortNo: row.sort_no,
-        enabled: row.enabled === 1,
-        remark: row.remark ?? ''
-      }
-    : { label: '', value: '', sortNo: (parent?.children?.length ?? items.value.length) + 1, enabled: true, remark: '' }
-  itemDialog.visible = true
+function openItemCreate(): void {
+  Object.assign(itemForm, { id: 0, itemKey: '', itemValue: '', sortOrder: 0, description: '' })
+  itemDialog.value = true
+}
+
+function openItemEdit(row: DictItem): void {
+  Object.assign(itemForm, {
+    id: row.Id,
+    itemKey: row.ItemKey,
+    itemValue: row.ItemValue,
+    sortOrder: row.SortOrder,
+    description: row.Description ?? '',
+  })
+  itemDialog.value = true
 }
 
 async function submitItem(): Promise<void> {
-  if (!itemFormRef.value) return
-  const valid = await itemFormRef.value.validate().catch(() => false)
-  if (!valid) return
-  itemDialog.saving = true
+  if (!activeId.value) return
+  if (!itemForm.itemKey.trim() || !itemForm.itemValue.trim()) {
+    ElMessage.warning('键值与显示值不能为空')
+    return
+  }
+  saving.value = true
   try {
     const res = await window.api.dict.saveItem({
-      id: itemDialog.id || undefined,
-      typeCode: activeCode.value,
-      parentId: itemDialog.parentId,
-      label: itemDialog.form.label.trim(),
-      value: itemDialog.form.value.trim(),
-      sortNo: itemDialog.form.sortNo,
-      enabled: itemDialog.form.enabled,
-      remark: itemDialog.form.remark.trim()
+      id: itemForm.id || undefined,
+      classId: activeId.value,
+      itemKey: itemForm.itemKey.trim(),
+      itemValue: itemForm.itemValue.trim(),
+      sortOrder: itemForm.sortOrder,
+      description: itemForm.description,
     })
     if (!res?.ok) {
-      ElMessage.error(res?.message || '保存失败')
+      ElMessage.error(res?.error ?? '保存失败')
       return
     }
     ElMessage.success('已保存')
-    itemDialog.visible = false
-    await loadTypes()
-    await loadItems()
+    itemDialog.value = false
+    await Promise.all([loadItems(), loadClasses(activeId.value ?? undefined)])
   } finally {
-    itemDialog.saving = false
+    saving.value = false
   }
-}
-
-async function toggleItem(row: DictItem, enabled: boolean): Promise<void> {
-  const res = await window.api.dict.saveItem({
-    id: row.id,
-    typeCode: row.type_code,
-    parentId: row.parent_id,
-    label: row.label,
-    value: row.value,
-    sortNo: row.sort_no,
-    enabled,
-    remark: row.remark
-  })
-  if (!res?.ok) {
-    ElMessage.error(res?.message || '状态更新失败')
-    return
-  }
-  ElMessage.success(enabled ? '已启用' : '已停用')
-  await loadItems()
 }
 
 async function removeItem(row: DictItem): Promise<void> {
-  const hint = row.children?.length ? `，同时删除 ${row.children.length} 个子项` : ''
   try {
-    await ElMessageBox.confirm(`删除枚举项「${row.label}」${hint}？已经保存的单据不受影响`, '删除确认', {
-      confirmButtonText: '删除',
-      cancelButtonText: '取消',
-      type: 'warning'
-    })
+    await ElMessageBox.confirm(`确认删除字典项「${row.ItemValue}」？`, '删除字典项', { type: 'warning' })
   } catch {
     return
   }
-  const res = await window.api.dict.removeItem({ id: row.id })
+  const res = await window.api.dict.removeItem(row.Id)
   if (!res?.ok) {
-    ElMessage.error(res?.message || '删除失败')
+    ElMessage.error(res?.error ?? '删除失败')
     return
   }
   ElMessage.success('已删除')
-  await refreshAll()
+  await Promise.all([loadItems(), loadClasses(activeId.value ?? undefined)])
 }
 
-onMounted(refreshAll)
+onMounted(() => loadClasses())
 </script>
 
 <style scoped>
-.dict-layout {
+.page {
+  padding: 1.5rem 1.75rem 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-height: 100%;
+}
+
+.page-title {
+  margin: 0;
+  font-size: 1.375rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.page-subtitle {
+  margin: 0.125rem 0 0;
+  font-size: 0.8125rem;
+  color: var(--ink-3);
+}
+
+.layout {
   display: grid;
-  grid-template-columns: minmax(11rem, 15rem) minmax(0, 1fr);
+  grid-template-columns: minmax(13rem, 17rem) minmax(0, 1fr);
   gap: 1rem;
   align-items: start;
 }
 
-.card-head {
+.pane {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-md);
+  padding: 0.75rem;
+}
+
+.pane-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.75rem;
-  flex-wrap: wrap;
+  margin-bottom: 0.625rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--rule);
 }
 
-.card-title {
-  display: flex;
-  align-items: baseline;
-  gap: 0.5rem;
-  min-width: 0;
+.pane-title {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--ink);
 }
 
-.card-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.hint {
-  font-size: 0.6875rem;
-  letter-spacing: 0.02em;
-  color: var(--ink-3);
-}
-
-.pick-list {
+.class-list {
+  list-style: none;
   margin: 0;
   padding: 0;
-  list-style: none;
   display: flex;
   flex-direction: column;
   gap: 0.125rem;
 }
 
-.pick-item {
+.class-item {
   padding: 0.5rem 0.625rem;
   border-radius: var(--r-sm);
-  border: 1px solid transparent;
   cursor: pointer;
-  transition: background-color 0.15s ease, border-color 0.15s ease;
+  border: 1px solid transparent;
 }
 
-.pick-item:hover {
+.class-item:hover {
   background: var(--surface-alt);
 }
 
-.pick-item:hover .pick-ops {
-  opacity: 1;
+.class-item.active {
+  background: #eaf2f9;
+  border-color: #c9dcee;
 }
 
-.pick-item.active {
-  background: var(--surface-alt);
-  border-color: var(--rule-2);
-}
-
-.pick-main {
+.class-main {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
+}
+
+.class-name {
   font-size: 0.875rem;
   font-weight: 500;
   color: var(--ink);
 }
 
-.pick-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.pick-count {
-  flex: none;
-  font-size: 0.6875rem;
-  font-weight: 400;
+.class-count {
+  font-size: 0.75rem;
   color: var(--ink-3);
-  font-variant-numeric: tabular-nums;
 }
 
-.pick-sub {
-  position: relative;
-  display: flex;
-  align-items: center;
+.class-desc {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--ink-3);
   margin-top: 0.125rem;
-  min-height: 1.25rem;
-}
-
-.pick-meta {
-  font-size: 0.6875rem;
-  color: var(--ink-3);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.pick-ops {
-  position: absolute;
-  right: 0;
-  top: 0;
-  display: flex;
-  align-items: center;
+.class-actions {
+  display: none;
   gap: 0.25rem;
-  padding-left: 0.5rem;
-  background: var(--surface);
-  opacity: 0;
-  transition: opacity 0.15s ease;
+  margin-top: 0.25rem;
 }
 
-.pick-item.active .pick-ops {
-  background: var(--surface-alt);
+.class-item:hover .class-actions {
+  display: flex;
 }
 
-.pick-item:focus-within .pick-ops {
-  opacity: 1;
-}
-
-.pick-empty {
-  padding: 1.25rem 0;
-  text-align: center;
-  font-size: 0.625rem;
-  letter-spacing: 0.18em;
+.class-empty,
+.empty {
   color: var(--ink-3);
-}
-
-.table-foot {
-  margin: 0.75rem 0 0;
-  font-size: 0.75rem;
-  color: var(--ink-3);
-}
-
-.cell-label {
-  color: var(--ink);
-}
-
-.cell-note {
-  margin-top: 0.125rem;
-  font-size: 0.6875rem;
-  color: var(--ink-3);
-  line-height: 1.3;
-}
-
-.parent-ref {
   font-size: 0.875rem;
-  color: var(--ink-2);
+  padding: 0.75rem 0;
+  text-align: center;
 }
 
-@media (max-width: 56rem) {
-  .dict-layout {
-    grid-template-columns: minmax(0, 1fr);
+@media (max-width: 64rem) {
+  .layout {
+    grid-template-columns: 1fr;
   }
-
-  .pick-ops {
-    position: static;
-    opacity: 1;
-  }
-}
-
-:deep(.cell-mono) {
-  font-family: var(--mono);
-  font-size: 0.75rem;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-:deep(.mono input),
-.mono :deep(input) {
-  font-family: var(--mono);
-}
-
-:deep(.cell-actions .cell) {
-  white-space: nowrap;
-}
-
-:deep(.cell-actions .el-button + .el-button) {
-  margin-left: 0.5rem;
 }
 </style>

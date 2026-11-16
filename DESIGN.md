@@ -52,8 +52,8 @@
 
 - 根字号 `clamp(13.5px, 0.24vw + 12.4px, 16.5px)`，其余尺寸一律用 `rem`，随窗口线性缩放而不是跳档。
 - 正文系统无衬线（`-apple-system` / `PingFang SC` / `Microsoft YaHei`），0.875rem。
-- 数据与编号：`ui-monospace`（SF Mono / Menlo / Consolas），用于案件编号、时间戳、驱动名、版本号、区块序号。
-- 页面标题 `clamp(1.25rem, 0.5vw + 1.05rem, 1.5rem)`；工作台读数 `clamp(1.75rem, 2vw + 0.75rem, 2.5rem)`。
+- 数据与编号：`ui-monospace`（SF Mono / Menlo / Consolas），用于信访编号、时间戳、驱动名、版本号。
+- 页面标题 `clamp(1.25rem, 0.5vw + 1.05rem, 1.5rem)`；首页读数 `clamp(1.75rem, 2vw + 0.75rem, 2.5rem)`。
 - 数字统一 `font-variant-numeric: tabular-nums`，表格与统计列对齐。
 - 圆角三档：`--r-sm .25rem`（标签、输入）、`--r-md .5rem`（按钮、浮层）、`--r-lg .625rem`（卡片、面板）。
 
@@ -63,10 +63,10 @@
 
 - 应用壳：侧栏 `clamp(11.5rem, 14vw, 15rem)`，顶栏 `3.25rem`，其余区域 `flex: 1`。
 - 页面：`padding: 1.5rem clamp(1.25rem, 2.2vw, 2.25rem) 2.5rem`。
-- 工作台读数：`grid-template-columns: repeat(3, minmax(0,1fr)) minmax(0,1.1fr)`，整体随宽度等比拉伸。
+- 首页读数：`grid-template-columns: repeat(4, minmax(0,1fr))`，下方趋势与构成按 `minmax(0,1.5fr) minmax(0,1fr)` 分栏。
 - 双栏面板：`minmax(0,1.5fr) minmax(0,1fr)`，间距 `1rem`。
 - 表格列宽是唯一允许写固定值的地方，而且必须写成数字（Element Plus 对 `width`/`min-width` 做 `parseInt`，传 `"10.5rem"` 会被解析成 10px，整张表被压成一条缝）；列宽不影响缩放，外层容器与栅格负责自适应。
-- 枚举维护页：`grid-template-columns: minmax(11rem,15rem) minmax(0,1fr)`，左字典列表 / 右枚举项树表并列；≤ `56rem` 单列堆叠。列表行内操作按钮**悬浮才出现**（绝对定位覆盖在编码行右侧），避免小窗口里把编码挤掉；枚举项用 `el-table` 的树形行（`row-key` + `tree-props`）承载「父项 → 子项」，两级为上限，表单侧用 `el-tree-select` 展开同一棵树。
+- 基础字典页：`grid-template-columns: minmax(13rem,17rem) minmax(0,1fr)`，左字典分类 / 右字典项并列；≤ `64rem` 单列堆叠。分类行内操作按钮**悬浮才出现**，避免小窗口里把分类名挤掉。
 - 表单：`el-row`/`el-col` 百分比栅格，`label-width: 8rem`；附件表列宽用 `min-width` 的 rem 值，窄屏在卡片内横向滚动而不挤压文字。
 - 表情表：列宽全部 `min-width`，表格吃满容器宽度。
 
@@ -74,10 +74,10 @@
 
 | 断点 | 行为 |
 | --- | --- |
-| ≤ `68rem` | 工作台双栏改为上下堆叠 |
+| ≤ `68rem` | 首页双栏改为上下堆叠 |
 | ≤ `64rem` | 侧栏收为 4.25rem 图标栏，品牌切 `logo-mark.png`，导航文字隐藏（保留 `title`）。 |
 | ≤ `60rem` | 登录页封面压成顶部品牌条，表单卡片居中 |
-| ≤ `46rem` | 工作台读数改为两列两行 |
+| ≤ `46rem` | 首页读数改为两列两行 |
 
 ## 组件状态
 

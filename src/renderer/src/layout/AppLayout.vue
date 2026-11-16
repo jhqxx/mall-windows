@@ -37,13 +37,14 @@
           <span class="user-chip">
             <span class="avatar">{{ initial }}</span>
             <span class="user-id">
-              <span class="user-name">{{ session.user?.displayName }}</span>
+              <span class="user-name">{{ session.user?.realName }}</span>
               <span class="user-role mono">{{ session.user?.username }}</span>
             </span>
             <el-icon class="chev"><ArrowDown /></el-icon>
           </span>
           <template #dropdown>
             <el-dropdown-menu>
+              <el-dropdown-item disabled>{{ session.user?.department }} · {{ session.user?.role === 'Admin' ? '管理员' : '普通用户' }}</el-dropdown-item>
               <el-dropdown-item disabled>账号：{{ session.user?.username }}</el-dropdown-item>
               <el-dropdown-item command="logout" divided>退出登录</el-dropdown-item>
             </el-dropdown-menu>
@@ -62,7 +63,7 @@
 import { computed, markRaw, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowDown, Collection, DocumentAdd, Files, Odometer, Tickets } from '@element-plus/icons-vue'
+import { ArrowDown, Collection, Files, Odometer, Tickets, User } from '@element-plus/icons-vue'
 import { setUser, session } from '@/stores/session'
 import logoLight from '@/assets/logo-light.png'
 import logoMark from '@/assets/logo-mark.png'
@@ -72,25 +73,34 @@ const router = useRouter()
 const version = ref('0.1.0')
 const platform = ref('')
 
-const navItems = [
-  { path: '/dashboard', label: '工作台', icon: markRaw(Odometer) },
-  { path: '/cases/new', label: '案件录入', icon: markRaw(DocumentAdd) },
-  { path: '/cases', label: '案件列表', icon: markRaw(Files) },
-  { path: '/dicts', label: '枚举管理', icon: markRaw(Collection) },
-  { path: '/logs', label: '操作日志', icon: markRaw(Tickets) }
-]
+const navItems = computed(() =>
+  [
+    { path: '/home', label: '首页统计', icon: markRaw(Odometer) },
+    { path: '/complaints', label: '信访管理', icon: markRaw(Files) },
+    { path: '/dicts', label: '基础字典', icon: markRaw(Collection) },
+    { path: '/users', label: '用户管理', icon: markRaw(User), admin: true },
+    { path: '/logs', label: '操作日志', icon: markRaw(Tickets), admin: true }
+  ].filter((item) => !item.admin || session.user?.role === 'Admin')
+)
 
-const activePath = computed(() => (route.path.startsWith('/cases/new') ? '/cases/new' : route.path))
+const activePath = computed(() => {
+  if (route.path.startsWith('/complaints')) return '/complaints'
+  return route.path
+})
 
 const titles: Record<string, string> = {
-  '/dashboard': '工作台',
-  '/cases/new': '案件录入',
-  '/cases': '案件列表',
-  '/dicts': '枚举管理',
+  '/home': '首页统计',
+  '/complaints': '信访管理',
+  '/complaints/new': '新增信访',
+  '/dicts': '基础字典',
+  '/users': '用户管理',
   '/logs': '操作日志'
 }
-const currentTitle = computed(() => titles[route.path] ?? '工作台')
-const initial = computed(() => (session.user?.displayName ?? 'U').slice(0, 1))
+const currentTitle = computed(() => {
+  if (route.path.startsWith('/complaints/') && route.path.endsWith('/edit')) return '编辑信访'
+  return titles[route.path] ?? '信访管理系统'
+})
+const initial = computed(() => (session.user?.realName ?? session.user?.username ?? 'U').slice(0, 1))
 const platformLabel = computed(() =>
   platform.value === 'darwin' ? 'macOS' : platform.value === 'win32' ? 'Windows' : platform.value
 )

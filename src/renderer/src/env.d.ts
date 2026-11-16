@@ -6,53 +6,56 @@ declare module '*.vue' {
   export default component
 }
 
-type AnyResult = { ok: boolean; message?: string; [key: string]: any }
+type AnyResult<T = any> = { ok: boolean; data?: T; error?: string; [key: string]: any }
 
 interface Window {
   api: {
     auth: {
-      auto: () => Promise<AnyResult>
-      login: (payload: { username: string; password: string; remember: boolean }) => Promise<AnyResult>
-      logout: () => Promise<AnyResult>
+      login: (payload: { username: string; password: string }) => Promise<AnyResult>
       current: () => Promise<AnyResult>
+      logout: () => Promise<AnyResult>
     }
-    cases: {
-      create: (payload: unknown) => Promise<AnyResult>
-      list: (payload: { page: number; pageSize: number; keyword?: string }) => Promise<AnyResult>
-      get: (payload: { id: number }) => Promise<AnyResult>
-      remove: (payload: { id: number }) => Promise<AnyResult>
+    complaints: {
+      list: (filter: unknown) => Promise<AnyResult>
+      get: (code: string) => Promise<AnyResult>
+      nextCode: () => Promise<AnyResult>
+      save: (payload: { isNew: boolean; data: Record<string, string | null> }) => Promise<AnyResult>
+      remove: (codes: string[]) => Promise<AnyResult>
     }
     attachments: {
+      list: (code: string) => Promise<AnyResult>
       pick: () => Promise<AnyResult>
-      pending: () => Promise<AnyResult>
-      remove: (payload: { ids: number[] }) => Promise<AnyResult>
-      download: (payload: { ids: number[] }) => Promise<AnyResult>
-    }
-    logs: {
-      list: (payload: { page: number; pageSize: number; action?: string; keyword?: string }) => Promise<AnyResult>
-      actions: () => Promise<AnyResult>
-      exportCsv: () => Promise<AnyResult>
+      add: (payload: unknown) => Promise<AnyResult>
+      remove: (ids: number[]) => Promise<AnyResult>
+      download: (ids: number[]) => Promise<AnyResult>
+      open: (id: number) => Promise<AnyResult>
     }
     dict: {
-      types: () => Promise<AnyResult>
-      items: (payload: { typeCode: string }) => Promise<AnyResult>
-      options: (payload: { code: string }) => Promise<AnyResult>
-      saveType: (payload: { id?: number; code: string; name: string; remark?: string | null }) => Promise<AnyResult>
-      removeType: (payload: { id: number }) => Promise<AnyResult>
-      saveItem: (payload: {
-        id?: number
-        typeCode: string
-        parentId?: number | null
-        label: string
-        value: string
-        sortNo: number
-        enabled: boolean
-        remark?: string | null
-      }) => Promise<AnyResult>
-      removeItem: (payload: { id: number }) => Promise<AnyResult>
+      classes: () => Promise<AnyResult>
+      items: (classId: number) => Promise<AnyResult>
+      options: (className: string) => Promise<AnyResult>
+      labels: (className: string) => Promise<AnyResult>
+      saveClass: (input: unknown) => Promise<AnyResult>
+      removeClass: (id: number) => Promise<AnyResult>
+      saveItem: (input: unknown) => Promise<AnyResult>
+      removeItem: (id: number) => Promise<AnyResult>
+    }
+    users: {
+      list: () => Promise<AnyResult>
+      save: (input: unknown) => Promise<AnyResult>
+      remove: (id: number) => Promise<AnyResult>
+      resetPassword: (payload: { id: number; password: string }) => Promise<AnyResult>
+    }
+    logs: {
+      list: (filter: unknown) => Promise<AnyResult>
+      facets: () => Promise<AnyResult>
+    }
+    stats: {
+      overview: () => Promise<AnyResult>
+      monthly: () => Promise<AnyResult>
+      groups: (field: 'ClueSource' | 'DisposeForm' | 'UndertakeDept') => Promise<AnyResult>
     }
     app: {
-      stats: () => Promise<AnyResult>
       meta: () => Promise<AnyResult>
     }
   }

@@ -1,174 +1,178 @@
 <template>
   <div class="page">
-    <h2 class="page-title">操作日志</h2>
+    <header class="page-head">
+      <div>
+        <h1 class="page-title">操作日志</h1>
+        <p class="page-subtitle">共 {{ total }} 条记录</p>
+      </div>
+    </header>
 
-    <el-card class="section-card" shadow="never">
-      <div class="table-toolbar">
-        <div class="toolbar-left">
-          <el-select v-model="action" placeholder="全部动作" clearable style="width: 10rem" @change="reload">
-            <el-option v-for="item in actions" :key="item.value" :label="item.label" :value="item.value" />
-          </el-select>
-          <el-input v-model="keyword" placeholder="用户 / 详情 / 对象ID" clearable style="width: 15rem" :prefix-icon="Search"
-            @keyup.enter="reload" @clear="reload" />
-          <el-button type="primary" :icon="Search" @click="reload">查询</el-button>
-        </div>
-        <div class="toolbar-right">
-          <el-button :icon="Refresh" @click="reload">刷新</el-button>
-          <el-button type="primary" plain :icon="Download" @click="exportCsv">导出 CSV</el-button>
-        </div>
+    <section class="block">
+      <div class="toolbar">
+        <el-select v-model="filter.module" placeholder="操作模块" clearable class="w-40" @change="reload">
+          <el-option v-for="item in facets.modules" :key="item" :label="item" :value="item" />
+        </el-select>
+        <el-select v-model="filter.type" placeholder="操作类型" clearable class="w-36" @change="reload">
+          <el-option v-for="item in facets.types" :key="item" :label="item" :value="item" />
+        </el-select>
+        <el-input v-model="filter.user" placeholder="操作人" clearable class="w-36" @keyup.enter="reload" />
+        <el-input v-model="filter.keyword" placeholder="内容 / 对象" clearable class="w-52" @keyup.enter="reload" />
+        <el-button type="primary" :icon="Search" @click="reload">查询</el-button>
+        <el-button :icon="Refresh" @click="reset">重置</el-button>
       </div>
 
-      <el-table v-loading="loading" :data="rows" border stripe>
-        <el-table-column label="时间" min-width="168" class-name="cell-mono">
-          <template #default="{ row }">{{ formatTime(row.created_at) }}</template>
+      <el-table :data="rows" border stripe size="small">
+        <el-table-column label="时间" width="168" class-name="cell-mono">
+          <template #default="{ row }">{{ shortTime(row.OperationTime) }}</template>
         </el-table-column>
-        <el-table-column prop="username" label="用户" min-width="88">
-          <template #default="{ row }">{{ row.username || '-' }}</template>
-        </el-table-column>
-        <el-table-column label="动作" min-width="136">
+        <el-table-column label="操作人" width="150">
           <template #default="{ row }">
-            <span class="action-text">{{ actionLabel(row.action) }}</span>
-            <div class="action-code">{{ row.action }}</div>
+            {{ row.UserRealName || row.UserName }}
+            <span class="role" v-if="row.UserRole === 'Admin'">管理员</span>
           </template>
         </el-table-column>
-        <el-table-column label="对象" min-width="120" class-name="cell-mono">
-          <template #default="{ row }">
-            <span v-if="row.target_type">{{ row.target_type }}#{{ row.target_id }}</span>
-            <span v-else>-</span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="detail" label="详情" min-width="240" show-overflow-tooltip />
-        <el-table-column prop="machine" label="机器名" min-width="132" show-overflow-tooltip />
-        <el-table-column label="结果" min-width="84" align="center">
-          <template #default="{ row }">
-            <el-tag :type="row.result === 'success' ? 'success' : 'danger'" effect="plain" size="small">
-              {{ row.result === 'success' ? '成功' : '失败' }}
-            </el-tag>
-          </template>
-        </el-table-column>
+        <el-table-column prop="OperationType" label="类型" width="110" />
+        <el-table-column prop="OperationModule" label="模块" width="120" />
+        <el-table-column prop="OperationContent" label="内容" min-width="240" show-overflow-tooltip />
+        <el-table-column prop="TargetName" label="对象" width="150" show-overflow-tooltip />
+        <el-table-column prop="IPAddress" label="IP" width="120" class-name="cell-mono" />
         <template #empty>
-          <div class="empty-state"><span>NO RECORDS</span><p>当前筛选条件下没有日志</p></div>
+          <div class="empty">没有匹配的日志</div>
         </template>
       </el-table>
 
       <div class="pager">
-        <el-pagination v-model:current-page="page" v-model:page-size="pageSize" :total="total"
-          :page-sizes="[10, 20, 50, 100]" layout="total, sizes, prev, pager, next, jumper" background
-          @size-change="load" @current-change="load" />
+        <el-pagination
+          v-model:current-page="filter.page"
+          v-model:page-size="filter.pageSize"
+          :total="total"
+          :page-sizes="[20, 50, 100]"
+          layout="total, sizes, prev, pager, next"
+          background
+          @current-change="load"
+          @size-change="reload"
+        />
       </div>
-    </el-card>
+    </section>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
-import { ElMessage } from 'element-plus'
-import { Download, Refresh, Search } from '@element-plus/icons-vue'
+import { onMounted, reactive, ref } from 'vue'
+import { Refresh, Search } from '@element-plus/icons-vue'
 
-type LogRow = Record<string, any>
-type ActionOption = { value: string; label: string }
+type LogRow = {
+  Id: number
+  UserName: string
+  UserRealName: string | null
+  UserRole: string | null
+  OperationType: string
+  OperationModule: string
+  OperationContent: string | null
+  TargetName: string | null
+  IPAddress: string | null
+  OperationTime: string
+}
 
 const rows = ref<LogRow[]>([])
 const total = ref(0)
-const page = ref(1)
-const pageSize = ref(20)
-const action = ref('')
-const keyword = ref('')
-const loading = ref(false)
-const actions = ref<ActionOption[]>([])
+const facets = reactive<{ modules: string[]; types: string[] }>({ modules: [], types: [] })
 
-const LABELS: Record<string, string> = {
-  login: '登录成功',
-  login_failed: '登录失败',
-  auto_login: '自动登录',
-  logout: '退出登录',
-  create_case: '新增案件',
-  delete_case: '删除案件',
-  upload_attachment: '上传附件',
-  delete_attachment: '删除附件',
-  download_attachment: '下载附件',
-  export_csv: '导出日志',
-  save_dict_group: '维护字典分组',
-  delete_dict_group: '删除字典分组',
-  save_dict_type: '维护字典类型',
-  delete_dict_type: '删除字典类型',
-  save_dict_item: '维护枚举项',
-  delete_dict_item: '删除枚举项'
-}
+const filter = reactive({
+  module: '',
+  type: '',
+  user: '',
+  keyword: '',
+  page: 1,
+  pageSize: 20,
+})
 
-function actionLabel(value: string): string {
-  if (value === 'login_failed') return '登录失败'
-  return LABELS[value] ?? value
-}
-
-function formatTime(iso: string): string {
-  if (!iso) return '-'
-  const d = new Date(iso)
-  const p = (n: number): string => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
+function shortTime(value: string | null): string {
+  if (!value) return '—'
+  return String(value).slice(0, 19)
 }
 
 async function load(): Promise<void> {
-  loading.value = true
-  try {
-    const res = await window.api.logs.list({
-      page: page.value,
-      pageSize: pageSize.value,
-      action: action.value || undefined,
-      keyword: keyword.value || undefined
-    })
-    if (res?.ok) {
-      rows.value = res.rows
-      total.value = res.total
-    }
-  } finally {
-    loading.value = false
-  }
+  const res = await window.api.logs.list({ ...filter })
+  if (!res?.ok) return
+  rows.value = res.data.rows
+  total.value = res.data.total
 }
 
 function reload(): void {
-  page.value = 1
+  filter.page = 1
   load()
 }
 
-async function exportCsv(): Promise<void> {
-  const res = await window.api.logs.exportCsv()
-  if (res?.ok) ElMessage.success(`已导出 ${res.count} 条日志`)
-  else if (res?.message && res.message !== '已取消') ElMessage.error(res.message)
-  load()
+function reset(): void {
+  filter.module = ''
+  filter.type = ''
+  filter.user = ''
+  filter.keyword = ''
+  reload()
 }
 
 onMounted(async () => {
-  const res = await window.api.logs.actions()
-  if (res?.ok) actions.value = res.actions
-  await load()
+  const res = await window.api.logs.facets()
+  if (res?.ok) Object.assign(facets, res.data)
+  load()
 })
 </script>
 
 <style scoped>
-:deep(.cell-mono) {
-  font-family: var(--mono);
-  font-size: 0.6875rem;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
+.page {
+  padding: 1.5rem 1.75rem 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
 }
 
-.action-text {
-  font-size: 0.7812rem;
+.page-title {
+  margin: 0;
+  font-size: 1.375rem;
+  font-weight: 600;
   color: var(--ink);
 }
 
-.action-code {
-  margin-top: 2px;
-  font-family: var(--mono);
-  font-size: 0.6562rem;
-  letter-spacing: 0.02em;
+.page-subtitle {
+  margin: 0.125rem 0 0;
+  font-size: 0.8125rem;
+  color: var(--ink-3);
+}
+
+.block {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-md);
+  padding: 0.75rem;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.w-36 { width: 9rem; }
+.w-40 { width: 10rem; }
+.w-52 { width: 13rem; }
+
+.role {
+  margin-left: 0.375rem;
+  font-size: 0.75rem;
   color: var(--ink-3);
 }
 
 .pager {
   display: flex;
   justify-content: flex-end;
-  margin-top: 0.875rem;
+  margin-top: 0.75rem;
+}
+
+.empty {
+  color: var(--ink-3);
+  font-size: 0.875rem;
+  padding: 0.75rem 0;
 }
 </style>

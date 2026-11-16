@@ -1,526 +1,504 @@
-import { app, BrowserWindow, dialog, ipcMain, safeStorage } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import {
-  addAttachments,
+  addAttachment,
   addLog,
-  allLogs,
-  checkPassword,
+  changePassword,
   copyAttachmentTo,
-  createCase,
-  createSession,
   deleteAttachments,
-  deleteCase,
+  deleteComplaints,
+  deleteDictClass,
   deleteDictItem,
-  deleteDictType,
-  deleteSession,
-  findUser,
-  findUserByToken,
+  deleteUser,
+  dictLabelMap,
   dictOptions,
-  getAttachments,
-  getDictItem,
-  getCase,
+  getAttachment,
+  getComplaint,
   getPaths,
-  initRememberFilePath,
+  getUserById,
   listAttachments,
-  listCases,
+  listComplaints,
+  listDictClasses,
   listDictItems,
-  listDictTypes,
   listLogs,
+  listUsers,
+  logFacets,
+  nextOriginalCode,
+  overviewStats,
+  monthlyStats,
+  groupStats,
+  saveComplaint,
+  saveDictClass,
   saveDictItem,
-  saveDictType,
-  stats,
+  saveUser,
+  findUserByLogin,
+  tabCounts,
   toSessionUser,
-  type CaseInput,
-  type SessionUser
+  touchLogin,
+  type ComplaintFilter,
+  type SessionUser,
 } from './db'
 
 let currentUser: SessionUser | null = null
-let currentToken: string | null = null
 
 function requireUser(): SessionUser {
-  if (!currentUser) throw new Error('未登录')
+  if (!currentUser) throw new Error('请先登录')
   return currentUser
 }
 
-function rememberFile(): string {
-  return initRememberFilePath()
+function requireAdmin(): SessionUser {
+  const user = requireUser()
+  if (user.role !== 'Admin') throw new Error('仅管理员可执行该操作')
+  return user
 }
 
-// 系统钥匙串可用时用 safeStorage 加密；不可用时（如无钥匙串的沙箱/CI）降级为明文令牌，
-// 文件权限固定 600，且只保存一个随机会话令牌，不含密码。
-const PLAIN_PREFIX = 'PLAIN:'
+function ok<T>(data: T) {
+  return { ok: true as const, data }
+}
 
-function saveRemember(token: string): void {
-  try {
-    const file = rememberFile()
-    if (safeStorage.isEncryptionAvailable()) {
-      fs.writeFileSync(file, safeStorage.encryptString(token), { mode: 0o600 })
-    } else {
-      fs.writeFileSync(file, PLAIN_PREFIX + token, { mode: 0o600 })
+function fail(message: string) {
+  return { ok: false as const, error: message }
+}
+
+function localIp(): string {
+  const nets = os.networkInterfaces()
+  for (const list of Object.values(nets)) {
+    for (const net of list ?? []) {
+      if (net.family === 'IPv4' && !net.internal) return net.address
     }
-  } catch (err) {
-    console.error('[remember] save failed', err)
   }
+  return '127.0.0.1'
 }
 
-function clearRemember(): void {
-  try {
-    if (fs.existsSync(rememberFile())) fs.unlinkSync(rememberFile())
-  } catch {
-    /* ignore */
-  }
-}
-
-function readRemember(): string | null {
-  try {
-    const file = rememberFile()
-    if (!fs.existsSync(file)) return null
-    const buf = fs.readFileSync(file)
-    const text = buf.toString('utf8')
-    if (text.startsWith(PLAIN_PREFIX)) return text.slice(PLAIN_PREFIX.length)
-    if (!safeStorage.isEncryptionAvailable()) return null
-    return safeStorage.decryptString(buf)
-  } catch (err) {
-    console.error('[remember] read failed', err)
-    return null
-  }
-}
-
-const ACTION_LABELS: Record<string, string> = {
-  login: '登录成功',
-  login_failed: '登录失败',
-  auto_login: '自动登录',
-  logout: '退出登录',
-  create_case: '新增案件',
-  delete_case: '删除案件',
-  upload_attachment: '上传附件',
-  delete_attachment: '删除附件',
-  export_csv: '导出日志',
-  save_dict_type: '维护字典类型',
-  delete_dict_type: '删除字典类型',
-  save_dict_item: '维护枚举项',
-  delete_dict_item: '删除枚举项'
-}
-
-function csvCell(value: unknown): string {
-  const text = value === null || value === undefined ? '' : String(value)
-  return `"${text.replace(/"/g, '""')}"`
+function userTag(user: SessionUser): string {
+  return `${user.realName}(${user.username})`
 }
 
 export function registerIpc(getWindow: () => BrowserWindow | null): void {
-
-  ipcMain.handle('auth:auto', () => {
-    const token = readRemember()
-    if (!token) return { ok: false }
-    const row = findUserByToken(token)
+  ipcMain.handle('auth:login', (_e, payload: { username: string; password: string }) => {
+    const username = payload.username?.trim() ?? ''
+    const password = payload.password ?? ''
+    if (!username || !password) return fail('请输入用户名和密码')
+    const row = findUserByLogin(username, password)
     if (!row) {
-      clearRemember()
-      return { ok: false }
+      addLog({
+        userName: username,
+        userRealName: username,
+        userRole: '',
+        operationType: '登录失败',
+        operationModule: '系统登录',
+        operationContent: `用户名或密码错误：${username}`,
+        ipAddress: localIp(),
+      })
+      return fail('用户名或密码错误，或该账号已被禁用')
     }
-    const user = toSessionUser(row)
-    currentUser = user
-    currentToken = token
-    addLog({ userId: user.id, username: user.username, action: 'auto_login', detail: '记住我自动登录' })
-    return { ok: true, user }
+    currentUser = toSessionUser(row)
+    touchLogin(row.Id, localIp())
+    addLog({
+      userName: currentUser.username,
+      userRealName: currentUser.realName,
+      userRole: currentUser.role,
+      operationType: '登录',
+      operationModule: '系统登录',
+      operationContent: `${userTag(currentUser)} 登录系统`,
+      ipAddress: localIp(),
+    })
+    return ok(currentUser)
   })
 
-  ipcMain.handle('auth:login', (_event, payload: { username: string; password: string; remember: boolean }) => {
-    const username = String(payload?.username ?? '').trim()
-    const password = String(payload?.password ?? '')
-    const user = findUser(username)
-    if (!user || !checkPassword(user, password)) {
-      addLog({
-        username: username || null,
-        action: 'login_failed',
-        result: 'failed',
-        detail: user ? '密码错误' : '用户不存在'
-      })
-      return { ok: false, message: '用户名或密码错误' }
-    }
-    const su = toSessionUser(user)
-    currentUser = su
-    currentToken = createSession(user.id)
-    addLog({ userId: su.id, username: su.username, action: 'login', detail: '登录成功' })
-    if (payload?.remember) saveRemember(currentToken)
-    else clearRemember()
-    return { ok: true, user: su }
-  })
+  ipcMain.handle('auth:current', () => ok(currentUser))
 
   ipcMain.handle('auth:logout', () => {
-    const user = currentUser
-    if (currentToken) {
-      deleteSession(currentToken)
-      addLog({ userId: user?.id ?? null, username: user?.username ?? null, action: 'logout', detail: '退出登录' })
+    if (currentUser) {
+      addLog({
+        userName: currentUser.username,
+        userRealName: currentUser.realName,
+        userRole: currentUser.role,
+        operationType: '退出',
+        operationModule: '系统登录',
+        operationContent: `${userTag(currentUser)} 退出系统`,
+        ipAddress: localIp(),
+      })
     }
     currentUser = null
-    currentToken = null
-    clearRemember()
-    return { ok: true }
+    return ok(true)
   })
 
-  ipcMain.handle('auth:current', () => (currentUser ? { ok: true, user: currentUser } : { ok: false }))
+  ipcMain.handle('complaint:list', (_e, filter: ComplaintFilter) => {
+    requireUser()
+    return ok({ ...listComplaints(filter), tabs: tabCounts() })
+  })
 
-  ipcMain.handle('case:create', (_event, payload: { input: CaseInput; attachmentIds: number[] }) => {
+  ipcMain.handle('complaint:get', (_e, code: string) => {
+    requireUser()
+    const row = getComplaint(code)
+    return row ? ok(row) : fail('信访记录不存在')
+  })
+
+  ipcMain.handle('complaint:nextCode', () => {
+    requireUser()
+    return ok(nextOriginalCode())
+  })
+
+  ipcMain.handle('complaint:save', (_e, payload: { isNew: boolean; data: Record<string, string | null> }) => {
+    const user = requireUser()
+    const data = payload.data
+    if (!data.OriginalCode) return fail('原始编号不能为空')
+    if (!data.ReceiveTime) return fail('接收时间不能为空')
     try {
-      const user = requireUser()
-      const row = createCase(payload.input, user, payload.attachmentIds ?? [])
+      const code = saveComplaint(data, payload.isNew)
       addLog({
-        userId: user.id,
-        username: user.username,
-        action: 'create_case',
-        targetType: 'case',
-        targetId: row.id,
-        detail: `案件编号 ${row.case_no}，类型 ${row.case_type}，附件 ${payload.attachmentIds?.length ?? 0} 个`
+        userName: user.username,
+        userRealName: user.realName,
+        userRole: user.role,
+        operationType: payload.isNew ? '新增' : '修改',
+        operationModule: '信访管理',
+        operationContent: `${payload.isNew ? '新增' : '修改'}信访记录 ${code}`,
+        targetId: code,
+        targetName: String(data.TargetName ?? ''),
+        ipAddress: localIp(),
       })
-      return { ok: true, data: row }
-    } catch (err) {
-      return { ok: false, message: (err as Error).message }
+      return ok(code)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      if (message.includes('UNIQUE')) return fail('原始编号已存在，请更换编号')
+      return fail(message)
     }
   })
 
-  ipcMain.handle('case:list', (_event, payload: { page: number; pageSize: number; keyword?: string }) => {
-    const { rows, total } = listCases({
-      page: Math.max(1, payload?.page ?? 1),
-      pageSize: Math.min(100, Math.max(1, payload?.pageSize ?? 10)),
-      keyword: payload?.keyword
+  ipcMain.handle('complaint:delete', (_e, codes: string[]) => {
+    const user = requireUser()
+    if (!codes?.length) return fail('请选择要删除的记录')
+    deleteComplaints(codes)
+    addLog({
+      userName: user.username,
+      userRealName: user.realName,
+      userRole: user.role,
+      operationType: '删除',
+      operationModule: '信访管理',
+      operationContent: `删除信访记录 ${codes.join('、')}`,
+      targetId: codes.join(','),
+      ipAddress: localIp(),
     })
-    return { ok: true, rows, total }
+    return ok(true)
   })
 
-  ipcMain.handle('case:get', (_event, payload: { id: number }) => {
-    const row = getCase(payload?.id)
-    if (!row) return { ok: false, message: '案件不存在' }
-    return { ok: true, data: row, attachments: listAttachments(row.id) }
+  ipcMain.handle('dict:classes', () => {
+    requireUser()
+    return ok(listDictClasses())
   })
 
-  ipcMain.handle('case:delete', (_event, payload: { id: number }) => {
+  ipcMain.handle('dict:items', (_e, classId: number) => {
+    requireUser()
+    return ok(listDictItems(classId))
+  })
+
+  ipcMain.handle('dict:options', (_e, className: string) => {
+    requireUser()
+    return ok(dictOptions(className))
+  })
+
+  ipcMain.handle('dict:labels', (_e, className: string) => {
+    requireUser()
+    return ok(dictLabelMap(className))
+  })
+
+  ipcMain.handle('dict:class:save', (_e, input: { id?: number; className: string; description: string }) => {
+    const user = requireUser()
+    if (!input.className?.trim()) return fail('字典名称不能为空')
     try {
-      const user = requireUser()
-      const row = deleteCase(payload?.id)
-      if (!row) return { ok: false, message: '案件不存在' }
+      const id = saveDictClass({ ...input, className: input.className.trim() })
       addLog({
-        userId: user.id,
-        username: user.username,
-        action: 'delete_case',
-        targetType: 'case',
-        targetId: row.id,
-        detail: `删除案件 ${row.case_no}`
+        userName: user.username,
+        userRealName: user.realName,
+        userRole: user.role,
+        operationType: input.id ? '修改' : '新增',
+        operationModule: '基础字典',
+        operationContent: `${input.id ? '修改' : '新增'}字典 ${input.className.trim()}`,
+        targetId: String(id),
+        ipAddress: localIp(),
       })
-      return { ok: true }
-    } catch (err) {
-      return { ok: false, message: (err as Error).message }
+      return ok(id)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      if (message.includes('UNIQUE')) return fail('该字典名称已存在')
+      return fail(message)
     }
   })
 
-  const uploadPaths = (paths: string[]): { ok: boolean; rows: any[]; message?: string } => {
-    try {
-      const user = requireUser()
-      const rows = addAttachments(paths, user.username)
-      if (rows.length) {
-        addLog({
-          userId: user.id,
-          username: user.username,
-          action: 'upload_attachment',
-          targetType: 'attachment',
-          targetId: rows.map((r) => r.id).join(','),
-          detail: `上传 ${rows.length} 个附件：${rows.map((r) => r.file_name).join('、')}`
-        })
-      }
-      return { ok: true, rows }
-    } catch (err) {
-      return { ok: false, message: (err as Error).message, rows: [] }
-    }
-  }
-
-  ipcMain.handle('attachment:pick', async () => {
-    try {
-      requireUser()
-      const win = getWindow()
-      const result = win
-        ? await dialog.showOpenDialog(win, { title: '选择附件', properties: ['openFile', 'multiSelections'] })
-        : await dialog.showOpenDialog({ title: '选择附件', properties: ['openFile', 'multiSelections'] })
-      if (result.canceled || !result.filePaths.length) return { ok: true, rows: [] }
-      return uploadPaths(result.filePaths)
-    } catch (err) {
-      return { ok: false, message: (err as Error).message, rows: [] }
-    }
-  })
-
-  // 仅用于自动化验收（MALL_TEST_HOOKS=1 时注册），走与原生选择框完全相同的上传逻辑
-  if (process.env['MALL_TEST_HOOKS'] === '1') {
-    ipcMain.handle('test:addAttachments', (_event, payload: { paths: string[] }) =>
-      uploadPaths(payload?.paths ?? [])
-    )
-  }
-
-  ipcMain.handle('attachment:pending', () => {
-    try {
-      const user = requireUser()
-      return { ok: true, rows: listAttachments(null), operator: user.username }
-    } catch (err) {
-      return { ok: false, message: (err as Error).message, rows: [] }
-    }
-  })
-
-  ipcMain.handle('attachment:delete', (_event, payload: { ids: number[]; pending?: boolean }) => {
-    try {
-      const user = requireUser()
-      const rows = deleteAttachments(payload?.ids ?? [])
-      if (rows.length) {
-        addLog({
-          userId: user.id,
-          username: user.username,
-          action: 'delete_attachment',
-          targetType: 'attachment',
-          targetId: rows.map((r) => r.id).join(','),
-          detail: `删除 ${rows.length} 个附件：${rows.map((r) => r.file_name).join('、')}`
-        })
-      }
-      return { ok: true, count: rows.length }
-    } catch (err) {
-      return { ok: false, message: (err as Error).message }
-    }
-  })
-
-  ipcMain.handle('attachment:download', async (_event, payload: { ids: number[] }) => {
-    try {
-      const user = requireUser()
-      const rows = getAttachments(payload?.ids ?? [])
-      if (!rows.length) return { ok: false, message: '请先选择附件' }
-      const win = getWindow()
-      const opts = { title: '选择保存目录', properties: ['openDirectory', 'createDirectory'] as const }
-      const result = win ? await dialog.showOpenDialog(win, opts as any) : await dialog.showOpenDialog(opts as any)
-      if (result.canceled || !result.filePaths.length) return { ok: false, message: '已取消' }
-      const dir = result.filePaths[0]
-      let count = 0
-      for (const row of rows) {
-        try {
-          copyAttachmentTo(row, dir)
-          count += 1
-        } catch (err) {
-          console.error('[attachment] download failed', row.file_name, err)
-        }
-      }
-      addLog({
-        userId: user.id,
-        username: user.username,
-        action: 'download_attachment',
-        targetType: 'attachment',
-        targetId: rows.map((r) => r.id).join(','),
-        detail: `导出 ${count} 个附件到 ${dir}`
-      })
-      return { ok: true, count, dir }
-    } catch (err) {
-      return { ok: false, message: (err as Error).message }
-    }
-  })
-
-  ipcMain.handle(
-    'log:list',
-    (_event, payload: { page: number; pageSize: number; action?: string; keyword?: string }) => {
-      const { rows, total } = listLogs({
-        page: Math.max(1, payload?.page ?? 1),
-        pageSize: Math.min(200, Math.max(1, payload?.pageSize ?? 10)),
-        action: payload?.action,
-        keyword: payload?.keyword
-      })
-      return { ok: true, rows, total }
-    }
-  )
-
-  ipcMain.handle('log:actions', () => {
-    const rows = allLogs().map((r) => r.action)
-    const unique = Array.from(new Set(rows))
-    return { ok: true, actions: unique.map((a) => ({ value: a, label: ACTION_LABELS[a] ?? a })) }
-  })
-
-  ipcMain.handle('log:export', async () => {
-    try {
-      const user = requireUser()
-      const win = getWindow()
-      const day = new Date()
-      const stamp = `${day.getFullYear()}${String(day.getMonth() + 1).padStart(2, '0')}${String(
-        day.getDate()
-      ).padStart(2, '0')}`
-      const opts = { title: '导出操作日志', defaultPath: `操作日志-${stamp}.csv`, filters: [{ name: 'CSV', extensions: ['csv'] }] }
-      const result = win ? await dialog.showSaveDialog(win, opts) : await dialog.showSaveDialog(opts)
-      if (result.canceled || !result.filePath) return { ok: false, message: '已取消' }
-      const rows = allLogs()
-      const header = ['时间', '用户', '动作', '对象类型', '对象ID', '详情', '机器名', '结果'].map(csvCell).join(',')
-      const lines = rows.map((r) =>
-        [r.created_at, r.username, ACTION_LABELS[r.action] ?? r.action, r.target_type, r.target_id, r.detail, r.machine, r.result === 'failed' ? '失败' : '成功']
-          .map(csvCell)
-          .join(',')
-      )
-      fs.writeFileSync(result.filePath, '\uFEFF' + [header, ...lines].join('\r\n'), 'utf8')
-      addLog({
-        userId: user.id,
-        username: user.username,
-        action: 'export_csv',
-        targetType: 'log',
-        detail: `导出 ${rows.length} 条日志到 ${result.filePath}`
-      })
-      return { ok: true, count: rows.length, path: result.filePath }
-    } catch (err) {
-      return { ok: false, message: (err as Error).message }
-    }
-  })
-
-
-  ipcMain.handle('dict:types', () => {
-    try {
-      requireUser()
-      return { ok: true, rows: listDictTypes() }
-    } catch (err) {
-      return { ok: false, message: (err as Error).message, rows: [] }
-    }
-  })
-
-  ipcMain.handle('dict:items', (_event, payload: { typeCode: string }) => {
-    try {
-      requireUser()
-      return { ok: true, rows: listDictItems(String(payload?.typeCode ?? '')) }
-    } catch (err) {
-      return { ok: false, message: (err as Error).message, rows: [] }
-    }
-  })
-
-  ipcMain.handle('dict:options', (_event, payload: { code: string }) => {
-    try {
-      requireUser()
-      return { ok: true, rows: dictOptions(String(payload?.code ?? '')) }
-    } catch (err) {
-      return { ok: false, message: (err as Error).message, rows: [] }
-    }
-  })
-
-  ipcMain.handle(
-    'dict:type:save',
-    (_event, payload: { id?: number; code: string; name: string; remark?: string | null }) => {
-      try {
-        const user = requireUser()
-        const name = String(payload?.name ?? '').trim()
-        if (!name) return { ok: false, message: '请填写字典名称' }
-        const code = String(payload?.code ?? '').trim()
-        if (!payload?.id && !/^[a-z][a-z0-9_]{1,29}$/.test(code)) {
-          return { ok: false, message: '编码需以小写字母开头，仅含小写字母、数字、下划线（2–30 位）' }
-        }
-        const row = saveDictType({ id: payload?.id, code, name, remark: payload?.remark ?? null })
-        addLog({
-          userId: user.id,
-          username: user.username,
-          action: 'save_dict_type',
-          targetType: 'dict_type',
-          targetId: row.id,
-          detail: `${payload?.id ? '修改' : '新增'}字典 ${row.name}（${row.code}）`
-        })
-        return { ok: true, data: row }
-      } catch (err) {
-        const message = (err as Error).message
-        return {
-          ok: false,
-          message: message.includes('UNIQUE') ? '该编码已被占用' : message
-        }
-      }
-    }
-  )
-
-  ipcMain.handle('dict:type:delete', (_event, payload: { id: number }) => {
-    try {
-      const user = requireUser()
-      const res = deleteDictType(Number(payload?.id))
-      if (!res.ok) return { ok: false, message: res.message }
-      addLog({
-        userId: user.id,
-        username: user.username,
-        action: 'delete_dict_type',
-        targetType: 'dict_type',
-        targetId: payload?.id,
-        detail: `删除字典 ${res.name ?? ''}`
-      })
-      return { ok: true }
-    } catch (err) {
-      return { ok: false, message: (err as Error).message }
-    }
+  ipcMain.handle('dict:class:delete', (_e, id: number) => {
+    const user = requireUser()
+    deleteDictClass(id)
+    addLog({
+      userName: user.username,
+      userRealName: user.realName,
+      userRole: user.role,
+      operationType: '删除',
+      operationModule: '基础字典',
+      operationContent: `删除字典 Id=${id}`,
+      targetId: String(id),
+      ipAddress: localIp(),
+    })
+    return ok(true)
   })
 
   ipcMain.handle(
     'dict:item:save',
-    (_event, payload: {
-      id?: number
-      typeCode: string
-      parentId?: number | null
-      label: string
-      value: string
-      sortNo: number
-      enabled: boolean
-      remark?: string | null
-    }) => {
+    (
+      _e,
+      input: { id?: number; classId: number; itemKey: string; itemValue: string; sortOrder: number; description: string },
+    ) => {
+      const user = requireUser()
+      if (!input.itemKey?.trim()) return fail('键值不能为空')
+      if (!input.itemValue?.trim()) return fail('显示值不能为空')
       try {
-        const user = requireUser()
-        const label = String(payload?.label ?? '').trim()
-        const value = String(payload?.value ?? '').trim() || label
-        if (!label) return { ok: false, message: '请填写显示名称' }
-        if (payload?.parentId) {
-          const parent = getDictItem(Number(payload.parentId))
-          if (!parent) return { ok: false, message: '上级项不存在' }
-          if (parent.parent_id !== null) return { ok: false, message: '枚举项最多两级' }
-        }
-        const row = saveDictItem({
-          id: payload?.id,
-          typeCode: String(payload?.typeCode ?? ''),
-          parentId: payload?.parentId ?? null,
-          label,
-          value,
-          sortNo: Number(payload?.sortNo ?? 0),
-          enabled: payload?.enabled !== false,
-          remark: payload?.remark ?? null
+        const id = saveDictItem({
+          ...input,
+          itemKey: input.itemKey.trim(),
+          itemValue: input.itemValue.trim(),
         })
         addLog({
-          userId: user.id,
-          username: user.username,
-          action: 'save_dict_item',
-          targetType: 'dict_item',
-          targetId: row.id,
-          detail: `${payload?.id ? '修改' : '新增'}枚举项 ${row.type_code} / ${row.label}`
+          userName: user.username,
+          userRealName: user.realName,
+          userRole: user.role,
+          operationType: input.id ? '修改' : '新增',
+          operationModule: '基础字典',
+          operationContent: `${input.id ? '修改' : '新增'}字典项 ${input.itemValue.trim()}`,
+          targetId: String(id),
+          ipAddress: localIp(),
         })
-        return { ok: true, data: row }
-      } catch (err) {
-        const message = (err as Error).message
-        return {
-          ok: false,
-          message: message.includes('UNIQUE') ? '同一字典下已存在相同的存储值' : message
-        }
+        return ok(id)
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        if (message.includes('UNIQUE')) return fail('同一字典下已存在相同的键值')
+        return fail(message)
       }
-    }
+    },
   )
 
-  ipcMain.handle('dict:item:delete', (_event, payload: { id: number }) => {
-    try {
-      const user = requireUser()
-      const row = deleteDictItem(Number(payload?.id))
-      if (!row) return { ok: false, message: '枚举项不存在' }
-      addLog({
-        userId: user.id,
-        username: user.username,
-        action: 'delete_dict_item',
-        targetType: 'dict_item',
-        targetId: row.id,
-        detail: `删除枚举项 ${row.type_code} / ${row.label}`
-      })
-      return { ok: true }
-    } catch (err) {
-      return { ok: false, message: (err as Error).message }
-    }
+  ipcMain.handle('dict:item:delete', (_e, id: number) => {
+    requireUser()
+    deleteDictItem(id)
+    return ok(true)
   })
 
-  ipcMain.handle('app:stats', () => ({ ok: true, ...stats(), paths: getPaths() }))
+  ipcMain.handle('attachment:list', (_e, code: string) => {
+    requireUser()
+    return ok(listAttachments(code))
+  })
+
+  ipcMain.handle('attachment:pick', async () => {
+    requireUser()
+    const win = getWindow()
+    const result = win
+      ? await dialog.showOpenDialog(win, { properties: ['openFile', 'multiSelections'] })
+      : await dialog.showOpenDialog({ properties: ['openFile', 'multiSelections'] })
+    if (result.canceled) return ok([])
+    return ok(result.filePaths)
+  })
+
+  ipcMain.handle(
+    'attachment:add',
+    (_e, payload: { code: string; files: Array<{ path: string; name: string; size: number; type: string }> }) => {
+      const user = requireUser()
+      const dir = getPaths().attachmentsDir
+      const stored = payload.files.map((file) => {
+        const target = copyAttachmentTo(file.path, dir)
+        return {
+          OriginalCode: payload.code,
+          FileName: file.name,
+          FilePath: target,
+          FileSize: file.size,
+          FileType: file.type,
+          UploadTime: new Date().toISOString().replace('T', ' ').slice(0, 19),
+          Uploader: userTag(user),
+        }
+      })
+      const ids = stored.map((row) => addAttachment(row))
+      if (stored.length) {
+        addLog({
+          userName: user.username,
+          userRealName: user.realName,
+          userRole: user.role,
+          operationType: '上传附件',
+          operationModule: '信访管理',
+          operationContent: `为 ${payload.code} 上传 ${stored.length} 个附件`,
+          targetId: payload.code,
+          ipAddress: localIp(),
+        })
+      }
+      return ok(ids)
+    },
+  )
+
+  ipcMain.handle('attachment:delete', (_e, ids: number[]) => {
+    const user = requireUser()
+    const files = ids.map((id) => getAttachment(id)).filter((row): row is NonNullable<typeof row> => Boolean(row))
+    deleteAttachments(ids)
+    for (const file of files) {
+      try {
+        if (fs.existsSync(file.FilePath)) fs.unlinkSync(file.FilePath)
+      } catch {
+        // 附件文件可能已不存在
+      }
+    }
+    addLog({
+      userName: user.username,
+      userRealName: user.realName,
+      userRole: user.role,
+      operationType: '删除附件',
+      operationModule: '信访管理',
+      operationContent: `删除 ${ids.length} 个附件`,
+      ipAddress: localIp(),
+    })
+    return ok(true)
+  })
+
+  ipcMain.handle('attachment:download', async (_e, ids: number[]) => {
+    requireUser()
+    const rows = ids.map((id) => getAttachment(id)).filter((row): row is NonNullable<typeof row> => Boolean(row))
+    if (!rows.length) return fail('没有可下载的附件')
+    const win = getWindow()
+    const options: Electron.OpenDialogOptions = { properties: ['openDirectory', 'createDirectory'] }
+    const result = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options)
+    if (result.canceled || !result.filePaths[0]) return ok(0)
+    const dir = result.filePaths[0]
+    let count = 0
+    for (const row of rows) {
+      if (!fs.existsSync(row.FilePath)) continue
+      let target = path.join(dir, row.FileName)
+      if (fs.existsSync(target)) {
+        const ext = path.extname(row.FileName)
+        target = path.join(dir, `${path.basename(row.FileName, ext)}_${row.Id}${ext}`)
+      }
+      fs.copyFileSync(row.FilePath, target)
+      count += 1
+    }
+    return ok(count)
+  })
+
+  ipcMain.handle('attachment:open', async (_e, id: number) => {
+    requireUser()
+    const row = getAttachment(id)
+    if (!row || !fs.existsSync(row.FilePath)) return fail('文件不存在')
+    await shell.openPath(row.FilePath)
+    return ok(true)
+  })
+
+  ipcMain.handle('users:list', () => {
+    requireAdmin()
+    return ok(listUsers().map(({ Password: _password, ...rest }) => rest))
+  })
+
+  ipcMain.handle(
+    'users:save',
+    (
+      _e,
+      input: {
+        id?: number
+        username: string
+        password?: string
+        realName: string
+        role: string
+        department: string
+        email: string
+        phone: string
+        isActive: number
+      },
+    ) => {
+      const admin = requireAdmin()
+      if (!input.username?.trim()) return fail('用户名不能为空')
+      if (!input.id && !input.password) return fail('新增用户必须设置密码')
+      try {
+        const id = saveUser({ ...input, username: input.username.trim() })
+        addLog({
+          userName: admin.username,
+          userRealName: admin.realName,
+          userRole: admin.role,
+          operationType: input.id ? '修改' : '新增',
+          operationModule: '用户管理',
+          operationContent: `${input.id ? '修改' : '新增'}用户 ${input.username.trim()}`,
+          targetId: String(id),
+          ipAddress: localIp(),
+        })
+        return ok(id)
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        if (message.includes('UNIQUE')) return fail('用户名已存在')
+        return fail(message)
+      }
+    },
+  )
+
+  ipcMain.handle('users:delete', (_e, id: number) => {
+    const admin = requireAdmin()
+    const target = getUserById(id)
+    if (!target) return fail('用户不存在')
+    if (target.Username === 'admin') return fail('不能删除管理员账户')
+    deleteUser(id)
+    addLog({
+      userName: admin.username,
+      userRealName: admin.realName,
+      userRole: admin.role,
+      operationType: '删除',
+      operationModule: '用户管理',
+      operationContent: `删除用户 ${target.Username}`,
+      targetId: String(id),
+      ipAddress: localIp(),
+    })
+    return ok(true)
+  })
+
+  ipcMain.handle('users:resetPassword', (_e, payload: { id: number; password: string }) => {
+    const admin = requireAdmin()
+    if (!payload.password) return fail('新密码不能为空')
+    changePassword(payload.id, payload.password)
+    addLog({
+      userName: admin.username,
+      userRealName: admin.realName,
+      userRole: admin.role,
+      operationType: '重置密码',
+      operationModule: '用户管理',
+      operationContent: `重置用户 Id=${payload.id} 的密码`,
+      targetId: String(payload.id),
+      ipAddress: localIp(),
+    })
+    return ok(true)
+  })
+
+  ipcMain.handle('logs:list', (_e, filter) => {
+    requireAdmin()
+    return ok(listLogs(filter))
+  })
+
+  ipcMain.handle('logs:facets', () => {
+    requireAdmin()
+    return ok(logFacets())
+  })
+
+  ipcMain.handle('stats:overview', () => {
+    requireUser()
+    return ok(overviewStats())
+  })
+
+  ipcMain.handle('stats:monthly', () => {
+    requireUser()
+    return ok(monthlyStats())
+  })
+
+  ipcMain.handle('stats:groups', (_e, field: 'ClueSource' | 'DisposeForm' | 'UndertakeDept') => {
+    requireUser()
+    return ok(groupStats(field))
+  })
+
   ipcMain.handle('app:meta', () => ({
-    ok: true,
     version: app.getVersion(),
-    platform: process.platform,
     electron: process.versions.electron,
-    node: process.versions.node
+    node: process.versions.node,
+    platform: process.platform,
+    driver: 'node:sqlite',
   }))
 }
+

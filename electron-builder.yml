@@ -1,5 +1,5 @@
-appId: com.lbxq.malldesktop
-productName: MallDesktop
+appId: com.lbxq.petitiondesktop
+productName: PetitionDesktop
 icon: build/icon.png
 directories:
   buildResources: build
@@ -18,8 +18,10 @@ mac:
         - arm64
   category: public.app-category.business
   identity: null
+  extendInfo:
+    CFBundleDisplayName: 信访管理系统
 dmg:
-  title: MallDesktop
+  title: 信访管理系统
 win:
   target:
     - target: nsis
@@ -32,6 +34,6 @@ nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
   perMachine: false
-  shortcutName: Mall Desktop
+  shortcutName: 信访管理系统
 portable:
-  artifactName: MallDesktop-${version}-portable.exe
+  artifactName: PetitionDesktop-${version}-portable.exe

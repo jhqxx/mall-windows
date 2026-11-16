@@ -1,6 +1,6 @@
 /**
  * node:sqlite 优先、better-sqlite3 回退；上层只依赖 SqliteHandle。
- * 差异抹平：pragma→exec；transaction→BEGIN/COMMIT/ROLLBACK；lastInsertRowid/changes 统一 number。
+ * 差异抹平：pragma→exec；transaction 立即执行 BEGIN/COMMIT/ROLLBACK；lastInsertRowid/changes 统一 number。
  */
 
 export interface RunResult {
@@ -21,7 +21,7 @@ export interface SqliteHandle {
   exec(sql: string): void
   pragma(sql: string): void
   prepare(sql: string): SqliteStatement
-  transaction<T>(fn: () => T): () => T
+  transaction<T>(fn: () => T): T
   close(): void
 }
 
@@ -68,21 +68,19 @@ class NodeSqliteHandle implements SqliteHandle {
     }
   }
 
-  transaction<T>(fn: () => T): () => T {
-    return (): T => {
-      this.db.exec('BEGIN')
+  transaction<T>(fn: () => T): T {
+    this.db.exec('BEGIN')
+    try {
+      const out = fn()
+      this.db.exec('COMMIT')
+      return out
+    } catch (err) {
       try {
-        const out = fn()
-        this.db.exec('COMMIT')
-        return out
-      } catch (err) {
-        try {
-          this.db.exec('ROLLBACK')
-        } catch {
-          /* 回滚失败时保留原始错误 */
-        }
-        throw err
+        this.db.exec('ROLLBACK')
+      } catch {
+        /* 回滚失败时保留原始错误 */
       }
+      throw err
     }
   }
 
@@ -116,8 +114,8 @@ class BetterSqlite3Handle implements SqliteHandle {
     }
   }
 
-  transaction<T>(fn: () => T): () => T {
-    return this.db.transaction(fn)
+  transaction<T>(fn: () => T): T {
+    return this.db.transaction(fn)()
   }
 
   close(): void {
