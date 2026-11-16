@@ -3,9 +3,12 @@
     <header class="page-head">
       <div>
         <h1 class="page-title">用户管理</h1>
-        <p class="page-subtitle">合计 {{ rows.length }} 个账户</p>
+        <p class="page-subtitle">{{ deleted ? '回收站' : `合计 ${rows.length} 个账户` }}</p>
       </div>
-      <el-button type="primary" :icon="Plus" @click="openCreate">新增用户</el-button>
+      <div class="head-actions">
+        <el-button :icon="RefreshLeft" @click="toggleRecycle">{{ deleted ? '返回列表' : '回收站' }}</el-button>
+        <el-button v-if="!deleted" type="primary" :icon="Plus" @click="openCreate">新增用户</el-button>
+      </div>
     </header>
 
     <section class="block">
@@ -14,9 +17,9 @@
         <el-table-column prop="RealName" label="姓名" min-width="110" />
         <el-table-column label="角色" width="100">
           <template #default="{ row }">
-            <el-tag :type="row.Role === 'Admin' ? 'danger' : 'info'" effect="plain" size="small">
+            <span class="pill" :class="row.Role === 'Admin' ? 'pill-admin' : 'pill-muted'">
               {{ row.Role === 'Admin' ? '管理员' : '普通用户' }}
-            </el-tag>
+            </span>
           </template>
         </el-table-column>
         <el-table-column prop="Department" label="部门" min-width="130" show-overflow-tooltip />
@@ -32,9 +35,14 @@
         </el-table-column>
         <el-table-column label="操作" width="200" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
-            <el-button link type="primary" @click="openReset(row)">重置密码</el-button>
-            <el-button link type="danger" :disabled="row.Username === 'admin'" @click="remove(row)">删除</el-button>
+            <template v-if="deleted">
+              <el-button link type="primary" @click="restore(row)">恢复</el-button>
+            </template>
+            <template v-else>
+              <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
+              <el-button link type="primary" @click="openReset(row)">重置密码</el-button>
+              <el-button link type="danger" :disabled="row.Username === 'admin'" @click="remove(row)">删除</el-button>
+            </template>
           </template>
         </el-table-column>
       </el-table>
@@ -84,7 +92,7 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
+import { Plus, RefreshLeft } from '@element-plus/icons-vue'
 
 type UserRow = {
   Id: number
@@ -99,6 +107,7 @@ type UserRow = {
 }
 
 const rows = ref<UserRow[]>([])
+const deleted = ref(false)
 const dialogVisible = ref(false)
 const resetVisible = ref(false)
 const saving = ref(false)
@@ -119,7 +128,7 @@ const form = reactive({
 })
 
 async function load(): Promise<void> {
-  const res = await window.api.users.list()
+  const res = await window.api.users.list({ deleted: deleted.value })
   if (res?.ok) rows.value = res.data
 }
 
@@ -212,6 +221,21 @@ async function submitReset(): Promise<void> {
   }
 }
 
+function toggleRecycle(): void {
+  deleted.value = !deleted.value
+  load()
+}
+
+async function restore(row: UserRow): Promise<void> {
+  const res = await window.api.users.restore(row.Id)
+  if (!res?.ok) {
+    ElMessage.error(res?.error ?? '恢复失败')
+    return
+  }
+  ElMessage.success('已恢复')
+  load()
+}
+
 async function remove(row: UserRow): Promise<void> {
   try {
     await ElMessageBox.confirm(`确认删除用户「${row.RealName}」？`, '删除用户', { type: 'warning' })
@@ -231,6 +255,11 @@ onMounted(load)
 </script>
 
 <style scoped>
+.head-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
 .page {
   padding: 1.5rem 1.75rem 2rem;
   display: flex;

@@ -410,3 +410,54 @@ body {
     scroll-behavior: auto !important;
   }
 }
+
+/* 状态色：办理中 / 已办结 / 已超期 / 停用 */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.0625rem 0.4375rem;
+  border: 1px solid transparent;
+  border-radius: 0.25rem;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.pill::before {
+  content: '';
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.pill-processing {
+  color: #175a93;
+  background: #e8f1fa;
+  border-color: #cfe0f0;
+}
+
+.pill-done {
+  color: #14664b;
+  background: #e7f4ee;
+  border-color: #c6e5d6;
+}
+
+.pill-overdue {
+  color: #9a2c22;
+  background: #fbeae8;
+  border-color: #f0cdc7;
+}
+
+.pill-muted {
+  color: #5a6b7c;
+  background: #eef3f8;
+  border-color: #dbe5ee;
+}
+
+.pill-admin {
+  color: #8a4a12;
+  background: #fbf0e3;
+  border-color: #efd9bd;
+}

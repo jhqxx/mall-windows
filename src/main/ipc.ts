@@ -2,6 +2,7 @@ import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import fs from 'node:fs'
 import { buildComplaintWorkbook, buildLogWorkbook, buildStatsWorkbook, parseComplaintWorkbook } from './excel'
 import { complaintPrintHtml, listPrintHtml } from './print'
+import { copyDatabase, defaults, readSettings, writeSettings } from './settings'
 import os from 'node:os'
 import path from 'node:path'
 import {
@@ -12,8 +13,12 @@ import {
   lettersOfClue,
   changePassword,
   copyAttachmentTo,
+  checkpoint,
+  reloadDb,
   deleteAttachments,
   deleteComplaints,
+  restoreComplaints,
+  restoreUser,
   deleteDictClass,
   deleteDictItem,
   deleteUser,
@@ -37,6 +42,7 @@ import {
   saveComplaint,
   saveDictClass,
   saveDictItem,
+  getDictItem,
   saveUser,
   findUserByLogin,
   tabCounts,
@@ -285,14 +291,33 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     'dict:item:save',
     (
       _e,
-      input: { id?: number; classId: number; itemKey: string; itemValue: string; sortOrder: number; description: string },
+      input: {
+        id?: number
+        classId: number
+        parentId?: number | null
+        itemKey: string
+        itemValue: string
+        sortOrder: number
+        description: string
+      },
     ) => {
       const user = requireUser()
       if (!input.itemKey?.trim()) return fail('键值不能为空')
       if (!input.itemValue?.trim()) return fail('显示值不能为空')
+      const parentId = input.parentId ?? null
+      if (parentId) {
+        const parent = getDictItem(parentId)
+        if (!parent) return fail('上级字典项不存在')
+        if (parent.ParentId) return fail('字典最多三级，子项下不能再挂子项')
+      }
+      if (parentId && input.id) {
+        const self = getDictItem(input.id)
+        if (self && self.Id === parentId) return fail('不能把自身设为上级')
+      }
       try {
         const id = saveDictItem({
           ...input,
+          parentId,
           itemKey: input.itemKey.trim(),
           itemValue: input.itemValue.trim(),
         })
@@ -424,9 +449,43 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     return ok(true)
   })
 
-  ipcMain.handle('users:list', () => {
+  ipcMain.handle('users:list', (_e, options?: { deleted?: boolean }) => {
     requireAdmin()
-    return ok(listUsers().map(({ Password: _password, ...rest }) => rest))
+    return ok(listUsers(Boolean(options?.deleted)).map(({ Password: _password, ...rest }) => rest))
+  })
+
+  ipcMain.handle('complaint:restore', (_e, codes: string[]) => {
+    const user = requireUser()
+    if (!codes?.length) return fail('请选择要恢复的记录')
+    const changed = restoreComplaints(codes)
+    addLog({
+      userName: user.username,
+      userRealName: user.realName,
+      userRole: user.role,
+      operationType: '恢复',
+      operationModule: '回收站',
+      operationContent: `恢复 ${changed} 条记录：${codes.slice(0, 5).join('、')}`,
+      targetId: codes[0],
+      ipAddress: localIp(),
+    })
+    return ok(changed)
+  })
+
+  ipcMain.handle('users:restore', (_e, id: number) => {
+    const admin = requireAdmin()
+    const changed = restoreUser(id)
+    if (!changed) return fail('该用户不在回收站中')
+    addLog({
+      userName: admin.username,
+      userRealName: admin.realName,
+      userRole: admin.role,
+      operationType: '恢复',
+      operationModule: '用户管理',
+      operationContent: `恢复用户 ${id}`,
+      targetId: String(id),
+      ipAddress: localIp(),
+    })
+    return ok(changed)
   })
 
   ipcMain.handle(
@@ -449,7 +508,11 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
       if (!input.username?.trim()) return fail('用户名不能为空')
       if (!input.id && !input.password) return fail('新增用户必须设置密码')
       try {
-        const id = saveUser({ ...input, username: input.username.trim() })
+        const id = saveUser({
+          ...input,
+          username: input.username.trim(),
+          isActive: input.isActive ?? 1,
+        })
         addLog({
           userName: admin.username,
           userRealName: admin.realName,
@@ -680,7 +743,61 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     })
   })
 
+  ipcMain.handle('settings:get', () => {
+    requireUser()
+    const current = readSettings()
+    return ok({ ...current, defaults: defaults(), userData: app.getPath('userData') })
+  })
+
+  ipcMain.handle('settings:pick', async (_e, kind: 'db' | 'attachments') => {
+    requireUser()
+    const result = await dialog.showOpenDialog({
+      title: kind === 'db' ? '选择数据库目录' : '选择附件目录',
+      properties: ['openDirectory', 'createDirectory'],
+    })
+    if (result.canceled || !result.filePaths.length) return ok(null)
+    const dir = result.filePaths[0]
+    return ok(kind === 'db' ? path.join(dir, 'petition.db') : dir)
+  })
+
+  ipcMain.handle(
+    'settings:save',
+    (_e, payload: { dbPath: string; attachmentsDir: string; copyData?: boolean }) => {
+      const user = requireUser()
+      const before = readSettings()
+      const next = {
+        dbPath: payload.dbPath?.trim() || before.dbPath,
+        attachmentsDir: payload.attachmentsDir?.trim() || before.attachmentsDir,
+      }
+      try {
+        if (next.dbPath !== before.dbPath) {
+          checkpoint()
+          if (payload.copyData) copyDatabase(before.dbPath, next.dbPath)
+        }
+        writeSettings(next)
+        reloadDb()
+        const current = getPaths()
+        addLog({
+          userName: user.username,
+          userRealName: user.realName,
+          userRole: user.role,
+          operationType: '设置',
+          operationModule: '系统设置',
+          operationContent: `数据库 ${current.dbFile}；附件目录 ${current.attachmentsDir}`,
+          targetId: current.dbFile,
+          ipAddress: localIp(),
+        })
+        return ok({ ...current, defaults: defaults() })
+      } catch (error) {
+        writeSettings(before)
+        reloadDb()
+        return fail(error instanceof Error ? error.message : String(error))
+      }
+    },
+  )
+
   ipcMain.handle('app:meta', () => ({
+    ok: true,
     version: app.getVersion(),
     electron: process.versions.electron,
     node: process.versions.node,

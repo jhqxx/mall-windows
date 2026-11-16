@@ -48,6 +48,7 @@ const router = createRouter({
           meta: { kind: 'letter' },
         },
         { path: 'dicts', name: 'dicts', component: () => import('@/views/DictView.vue') },
+        { path: 'settings', name: 'settings', component: () => import('@/views/SettingsView.vue') },
         { path: 'users', name: 'users', component: () => import('@/views/UsersView.vue'), meta: { admin: true } },
         { path: 'logs', name: 'logs', component: () => import('@/views/LogsView.vue'), meta: { admin: true } },
       ],

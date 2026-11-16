@@ -21,6 +21,7 @@ interface Window {
       nextCode: () => Promise<AnyResult>
       save: (payload: { isNew: boolean; data: Record<string, string | null> }) => Promise<AnyResult>
       remove: (codes: string[]) => Promise<AnyResult>
+      restore: (codes: string[]) => Promise<AnyResult>
       clueOptions: () => Promise<AnyResult>
       letters: (clueCode: string) => Promise<AnyResult>
       assign: (payload: { codes: string[]; clueCode: string | null }) => Promise<AnyResult>
@@ -47,7 +48,8 @@ interface Window {
       removeItem: (id: number) => Promise<AnyResult>
     }
     users: {
-      list: () => Promise<AnyResult>
+      list: (options?: { deleted?: boolean }) => Promise<AnyResult>
+      restore: (id: number) => Promise<AnyResult>
       save: (input: unknown) => Promise<AnyResult>
       remove: (id: number) => Promise<AnyResult>
       resetPassword: (payload: { id: number; password: string }) => Promise<AnyResult>
@@ -65,6 +67,11 @@ interface Window {
       complaints: (payload?: string[] | { codes?: string[]; category?: string }) => Promise<AnyResult>
       logs: (filter: unknown) => Promise<AnyResult>
       stats: () => Promise<AnyResult>
+    }
+    settings: {
+      get: () => Promise<AnyResult>
+      pick: (kind: 'db' | 'attachments') => Promise<AnyResult>
+      save: (payload: { dbPath: string; attachmentsDir: string; copyData?: boolean }) => Promise<AnyResult>
     }
     app: {
       meta: () => Promise<AnyResult>

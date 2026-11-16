@@ -12,10 +12,22 @@
         </p>
       </div>
       <div class="head-actions">
-        <el-button type="primary" :icon="Plus" @click="openNew">{{ isClue ? '新增线索' : '登记信访件' }}</el-button>
-        <el-button :icon="Edit" :disabled="selection.length !== 1" @click="openEdit(selection[0])">编辑</el-button>
-        <el-button :icon="Delete" :disabled="!selection.length" @click="removeSelected">批量删除</el-button>
-        <el-dropdown trigger="click" @command="onExport">
+        <el-button v-if="!filter.deleted" type="primary" :icon="Plus" @click="openNew">
+          {{ isClue ? '新增线索' : '登记信访件' }}
+        </el-button>
+        <el-button v-if="!filter.deleted" :icon="Edit" :disabled="selection.length !== 1" @click="openEdit(selection[0])">
+          编辑
+        </el-button>
+        <el-button v-if="!filter.deleted" :icon="Delete" :disabled="!selection.length" @click="removeSelected">
+          批量删除
+        </el-button>
+        <el-button :icon="RefreshLeft" @click="toggleRecycle">
+          {{ filter.deleted ? '返回列表' : '回收站' }}
+        </el-button>
+        <el-button v-if="filter.deleted" :icon="RefreshRight" :disabled="!selection.length" @click="restoreSelected">
+          恢复选中
+        </el-button>
+        <el-dropdown v-if="!filter.deleted" trigger="click" @command="onExport">
           <el-button :icon="Download">
             导出<el-icon class="el-icon--right"><ArrowDown /></el-icon>
           </el-button>
@@ -26,9 +38,8 @@
             </el-dropdown-menu>
           </template>
         </el-dropdown>
-        <el-button v-if="!isClue" :icon="Upload" @click="importExcel">导入 Excel</el-button>
-        <el-button v-if="!isClue" :icon="Printer" @click="printList">打印台账</el-button>
-        <el-button v-else :icon="Printer" @click="printList">打印台账</el-button>
+        <el-button v-if="!isClue && !filter.deleted" :icon="Upload" @click="importExcel">导入 Excel</el-button>
+        <el-button v-if="!filter.deleted" :icon="Printer" @click="printList">打印台账</el-button>
       </div>
     </header>
 
@@ -59,7 +70,7 @@
       <el-button :icon="RefreshLeft" @click="reset">重置</el-button>
     </section>
 
-    <el-tabs v-model="filter.tab" class="tabs" @tab-change="reload">
+    <el-tabs v-if="!filter.deleted" v-model="filter.tab" class="tabs" @tab-change="reload">
       <el-tab-pane :label="`全部 (${tabs.all ?? 0})`" name="all" />
       <el-tab-pane v-if="!isClue" :label="`实名举报 (${tabs.real ?? 0})`" name="real" />
       <el-tab-pane v-if="!isClue" :label="`匿名举报 (${tabs.anonymous ?? 0})`" name="anonymous" />
@@ -111,11 +122,12 @@
         </template>
       </el-table-column>
       <el-table-column prop="MainHandler" label="主办人" width="78" />
-      <el-table-column label="办结" width="78">
+      <el-table-column label="状态" width="132">
         <template #default="{ row }">
-          <el-tag :type="row.IsCompleted === 'BJ1001' ? 'success' : 'info'" effect="plain" size="small">
+          <span class="pill" :class="row.IsCompleted === 'BJ1001' ? 'pill-done' : 'pill-processing'">
             {{ row.IsCompleted === 'BJ1001' ? '已办结' : '办理中' }}
-          </el-tag>
+          </span>
+          <span v-if="row.IsOverdue === 'CQ1001'" class="pill pill-overdue" style="margin-left: 0.25rem">超期</span>
         </template>
       </el-table-column>
       <el-table-column label="接收时间" width="150" class-name="cell-mono">
@@ -124,12 +136,17 @@
       <el-table-column label="操作" :width="isClue ? 120 : 156" fixed="right" class-name="cell-actions">
         <template #default="{ row }">
           <el-button link type="primary" @click="openDetail(row)">查看</el-button>
-          <el-button link @click="openEdit(row)">编辑</el-button>
-          <el-button v-if="!isClue" link @click="openAssign(row)">归并</el-button>
+          <template v-if="filter.deleted">
+            <el-button link @click="restoreRow(row)">恢复</el-button>
+          </template>
+          <template v-else>
+            <el-button link @click="openEdit(row)">编辑</el-button>
+            <el-button v-if="!isClue" link @click="openAssign(row)">归并</el-button>
+          </template>
         </template>
       </el-table-column>
       <template #empty>
-        <div class="empty">暂无信访记录</div>
+        <div class="empty">{{ filter.deleted ? '回收站为空' : '暂无记录' }}</div>
       </template>
     </el-table>
 
@@ -186,7 +203,7 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowDown, Delete, Download, Edit, Plus, Printer, RefreshLeft, Search, Upload } from '@element-plus/icons-vue'
+import { ArrowDown, Delete, Download, Edit, Plus, Printer, RefreshLeft, RefreshRight, Search, Upload } from '@element-plus/icons-vue'
 
 type Row = Record<string, any>
 
@@ -210,6 +227,7 @@ const detailVisible = ref(false)
 const detail = ref<Row | null>(null)
 
 const filter = reactive({
+  deleted: false,
   tab: 'all',
   parent: '',
   clue: '',
@@ -447,6 +465,40 @@ function notifyExport(res: { ok: boolean; data?: string | null; error?: string }
     return
   }
   ElMessage.success(res.data ? `已导出到 ${res.data}` : '已取消导出')
+}
+
+function toggleRecycle(): void {
+  filter.deleted = !filter.deleted
+  selection.value = []
+  page.value = 1
+  load()
+}
+
+async function restoreSelected(): Promise<void> {
+  const codes = selection.value.map((row) => row.OriginalCode)
+  try {
+    await ElMessageBox.confirm(`恢复 ${codes.length} 条记录？`, '从回收站恢复', { type: 'warning' })
+  } catch {
+    return
+  }
+  const res = await window.api.complaints.restore(codes)
+  if (!res?.ok) {
+    ElMessage.error(res?.error ?? '恢复失败')
+    return
+  }
+  ElMessage.success(`已恢复 ${res.data} 条`)
+  selection.value = []
+  load()
+}
+
+async function restoreRow(row: { OriginalCode: string }): Promise<void> {
+  const res = await window.api.complaints.restore([row.OriginalCode])
+  if (!res?.ok) {
+    ElMessage.error(res?.error ?? '恢复失败')
+    return
+  }
+  ElMessage.success('已恢复')
+  load()
 }
 
 async function removeSelected(): Promise<void> {

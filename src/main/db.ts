@@ -1,4 +1,5 @@
 import { app } from 'electron'
+import { readSettings } from './settings'
 import fs from 'node:fs'
 import path from 'node:path'
 import { hashPassword, isHashed, verifyPassword } from './password'
@@ -42,6 +43,8 @@ export interface ComplaintFilter {
   disposeForm?: string
   keyword?: string
   tab?: string
+  /** true = 只查看回收站（已逻辑删除）中的记录 */
+  deleted?: boolean
   page?: number
   pageSize?: number
 }
@@ -58,12 +61,14 @@ export interface DictClassRow {
 export interface DictItemRow {
   Id: number
   ClassId: number
+  ParentId: number | null
   ItemKey: string
   ItemValue: string
   SortOrder: number
   Description: string | null
   CreateTime: string
   UpdateTime: string
+  children?: DictItemRow[]
 }
 
 export interface LogRow {
@@ -102,20 +107,46 @@ export function sqliteDriver(): DriverName {
 export function getPaths() {
   if (!paths) {
     const userData = app.getPath('userData')
+    const settings = readSettings()
     paths = {
       userData,
-      dbFile: path.join(userData, 'petition.db'),
-      attachmentsDir: path.join(userData, 'Attachments'),
+      dbFile: settings.dbPath,
+      attachmentsDir: settings.attachmentsDir,
     }
   }
   return paths
 }
 
-/** 老库补列：ParentCode 用于「线索（主）→ 信访件（子）」归属 */
-function ensureComplaintColumns(handle: SqliteHandle): void {
-  const columns = handle.prepare("PRAGMA table_info('Complaint')").all() as unknown as Array<{ name: string }>
-  if (!columns.some((column) => column.name === 'ParentCode')) {
-    handle.exec('ALTER TABLE Complaint ADD COLUMN ParentCode TEXT')
+/** 设置变更后重置路径缓存并重连数据库 */
+export function reloadDb(): void {
+  checkpoint()
+  if (db) {
+    db.close()
+    db = null
+  }
+  paths = null
+  initDb()
+}
+
+export function checkpoint(): void {
+  try {
+    db?.exec('PRAGMA wal_checkpoint(TRUNCATE)')
+  } catch (error) {
+    console.error('[db] checkpoint 失败：', error)
+  }
+}
+
+/** 老库补列：ParentCode 承载「线索（主）→ 信访件（子）」，ParentId 承载字典项的三级结构 */
+function ensureColumns(handle: SqliteHandle): void {
+  const add = (table: string, column: string, ddl: string): void => {
+    const columns = handle.prepare(`PRAGMA table_info('${table}')`).all() as unknown as Array<{ name: string }>
+    if (!columns.some((item) => item.name === column)) handle.exec(`ALTER TABLE ${table} ADD COLUMN ${ddl}`)
+  }
+  add('Complaint', 'ParentCode', 'ParentCode TEXT')
+  add('DictionaryItem', 'ParentId', 'ParentId INTEGER')
+  for (const table of ['Complaint', 'Users', 'DictionaryClass', 'DictionaryItem']) {
+    add(table, 'IsDeleted', 'IsDeleted INTEGER DEFAULT 0')
+    add(table, 'DeleteTime', 'DeleteTime DATETIME')
   }
 }
 
@@ -127,7 +158,7 @@ export function initDb(): void {
   db.pragma('busy_timeout = 5000')
   db.pragma('foreign_keys = ON')
   createSchema(db)
-  ensureComplaintColumns(db)
+  ensureColumns(db)
   try {
     seedIfEmpty(db)
   } catch (error) {
@@ -163,7 +194,7 @@ export function toSessionUser(row: UserRow): SessionUser {
 export function findUserByLogin(username: string, password: string): UserRow | null {
   const c = conn()
   const row = c
-    .prepare('SELECT * FROM Users WHERE Username = @username AND IsActive = 1')
+    .prepare('SELECT * FROM Users WHERE Username = @username AND IsActive = 1 AND IsDeleted = 0')
     .get({ username }) as unknown as UserRow | undefined
   if (!row) return null
   const result = verifyPassword(password, row.Password)
@@ -196,8 +227,12 @@ export function upgradePlainPasswords(): number {
   return changed
 }
 
+export function restoreUser(id: number): number {
+  return conn().prepare('UPDATE Users SET IsDeleted = 0, DeleteTime = NULL, IsActive = 1 WHERE Id = @id AND IsDeleted = 1').run({ id }).changes
+}
+
 export function getUserById(id: number): UserRow | null {
-  return (conn().prepare('SELECT * FROM Users WHERE Id = @id').get({ id }) as unknown as UserRow) ?? null
+  return (conn().prepare('SELECT * FROM Users WHERE Id = @id AND IsDeleted = 0').get({ id }) as unknown as UserRow) ?? null
 }
 
 export function touchLogin(id: number, ip: string): void {
@@ -206,9 +241,9 @@ export function touchLogin(id: number, ip: string): void {
     .run({ id, time: now(), ip })
 }
 
-export function listUsers(): UserRow[] {
+export function listUsers(deleted = false): UserRow[] {
   return conn()
-    .prepare('SELECT * FROM Users ORDER BY Id')
+    .prepare(`SELECT * FROM Users WHERE IsDeleted = ${deleted ? 1 : 0} ORDER BY Id`)
     .all() as unknown as UserRow[]
 }
 
@@ -272,7 +307,9 @@ export function saveUser(input: UserInput): number {
 }
 
 export function deleteUser(id: number): void {
-  conn().prepare('DELETE FROM Users WHERE Id = @id').run({ id })
+  conn()
+    .prepare('UPDATE Users SET IsDeleted = 1, DeleteTime = @time, IsActive = 0 WHERE Id = @id')
+    .run({ id, time: now() })
 }
 
 export function changePassword(id: number, password: string): void {
@@ -292,6 +329,11 @@ const TAB_CLAUSES: Record<string, { sql: string; params: Record<string, string> 
 function buildComplaintWhere(filter: ComplaintFilter): { where: string; params: Record<string, string> } {
   const clauses: string[] = []
   const params: Record<string, string> = {}
+  if (filter.deleted) {
+    clauses.push('IsDeleted = 1')
+    return { where: `WHERE ${clauses.join(' AND ')}`, params }
+  }
+  clauses.push('IsDeleted = 0')
   const tab = filter.tab && TAB_CLAUSES[filter.tab]
   if (tab) clauses.push(tab.sql)
   if (filter.category) {
@@ -363,7 +405,9 @@ function childCounts(rows: ComplaintRow[]): Record<string, number> {
     return `@p${index}`
   })
   const list = conn()
-    .prepare(`SELECT ParentCode, COUNT(*) AS n FROM Complaint WHERE ParentCode IN (${holes.join(',')}) GROUP BY ParentCode`)
+    .prepare(
+      `SELECT ParentCode, COUNT(*) AS n FROM Complaint WHERE IsDeleted = 0 AND ParentCode IN (${holes.join(',')}) GROUP BY ParentCode`,
+    )
     .all(params) as unknown as Array<{ ParentCode: string; n: number }>
   const map: Record<string, number> = {}
   for (const item of list) map[item.ParentCode] = item.n
@@ -387,7 +431,7 @@ export function clueOptions(): Array<{ code: string; name: string; summary: stri
 /** 线索名下的信访件 */
 export function lettersOfClue(clueCode: string): ComplaintRow[] {
   return conn()
-    .prepare('SELECT * FROM Complaint WHERE ParentCode = @clue ORDER BY ReceiveTime DESC, Id DESC')
+    .prepare('SELECT * FROM Complaint WHERE IsDeleted = 0 AND ParentCode = @clue ORDER BY ReceiveTime DESC, Id DESC')
     .all({ clue: clueCode }) as unknown as ComplaintRow[]
 }
 
@@ -424,16 +468,18 @@ export function complaintsForExport(codes?: string[], category?: string): Compla
       return `@c${index}`
     })
     return conn()
-      .prepare(`SELECT * FROM Complaint WHERE OriginalCode IN (${holes.join(',')}) ORDER BY ReceiveTime DESC, Id DESC`)
+      .prepare(
+        `SELECT * FROM Complaint WHERE IsDeleted = 0 AND OriginalCode IN (${holes.join(',')}) ORDER BY ReceiveTime DESC, Id DESC`,
+      )
       .all(params) as unknown as ComplaintRow[]
   }
   if (category) {
     return conn()
-      .prepare('SELECT * FROM Complaint WHERE Category = @category ORDER BY ReceiveTime DESC, Id DESC')
+      .prepare('SELECT * FROM Complaint WHERE IsDeleted = 0 AND Category = @category ORDER BY ReceiveTime DESC, Id DESC')
       .all({ category }) as unknown as ComplaintRow[]
   }
   return conn()
-    .prepare('SELECT * FROM Complaint ORDER BY ReceiveTime DESC, Id DESC')
+    .prepare('SELECT * FROM Complaint WHERE IsDeleted = 0 ORDER BY ReceiveTime DESC, Id DESC')
     .all() as unknown as ComplaintRow[]
 }
 
@@ -481,6 +527,14 @@ export function saveComplaint(input: Record<string, string | null>, isNew: boole
   data.CreateTime = isNew ? time : ((input.CreateTime as string) ?? time)
   data.UpdateTime = time
   const columns = Object.keys(data)
+  const existing = c
+    .prepare('SELECT IsDeleted FROM Complaint WHERE OriginalCode = @code')
+    .get({ code: String(data.OriginalCode) }) as unknown as { IsDeleted: number } | undefined
+  if (isNew && existing?.IsDeleted) {
+    const sets = columns.filter((k) => k !== 'OriginalCode').map((k) => `"${k}" = @${k}`)
+    c.prepare(`UPDATE Complaint SET ${sets.join(', ')}, IsDeleted = 0, DeleteTime = NULL WHERE OriginalCode = @OriginalCode`).run(data)
+    return String(data.OriginalCode)
+  }
   if (isNew) {
     const sql = `INSERT INTO Complaint (${columns.map((k) => `"${k}"`).join(', ')}) VALUES (${columns
       .map((k) => `@${k}`)
@@ -496,12 +550,26 @@ export function saveComplaint(input: Record<string, string | null>, isNew: boole
 export function deleteComplaints(codes: string[]): void {
   if (!codes.length) return
   const c = conn()
+  const time = now()
   c.transaction(() => {
     for (const code of codes) {
-      c.prepare('DELETE FROM ComplaintAttachment WHERE OriginalCode = @code').run({ code })
-      c.prepare('DELETE FROM Complaint WHERE OriginalCode = @code').run({ code })
+      c.prepare('UPDATE Complaint SET IsDeleted = 1, DeleteTime = @time WHERE OriginalCode = @code').run({ code, time })
     }
   })
+}
+
+export function restoreComplaints(codes: string[]): number {
+  if (!codes.length) return 0
+  const c = conn()
+  let changed = 0
+  c.transaction(() => {
+    for (const code of codes) {
+      changed += c
+        .prepare('UPDATE Complaint SET IsDeleted = 0, DeleteTime = NULL WHERE OriginalCode = @code AND IsDeleted = 1')
+        .run({ code }).changes
+    }
+  })
+  return changed
 }
 
 export function listAttachments(originalCode: string): AttachmentRow[] {
@@ -550,7 +618,7 @@ export interface StatsOverview {
 }
 
 export function overviewStats(): StatsOverview {
-  const all = conn().prepare('SELECT * FROM Complaint').all() as unknown as ComplaintRow[]
+  const all = conn().prepare('SELECT * FROM Complaint WHERE IsDeleted = 0').all() as unknown as ComplaintRow[]
   const xs = all.filter((r) => r.Category === '0')
   const count = (rows: ComplaintRow[], fn: (r: ComplaintRow) => boolean) => rows.filter(fn).length
   const xsTotal = xs.length
@@ -578,7 +646,7 @@ export function monthlyStats(): Array<{
   overdueCount: number
   completionRate: number
 }> {
-  const all = conn().prepare('SELECT * FROM Complaint').all() as unknown as ComplaintRow[]
+  const all = conn().prepare('SELECT * FROM Complaint WHERE IsDeleted = 0').all() as unknown as ComplaintRow[]
   const out: Array<{
     monthName: string
     count: number
@@ -604,7 +672,7 @@ export function monthlyStats(): Array<{
 }
 
 export function groupStats(field: 'ClueSource' | 'DisposeForm' | 'UndertakeDept') {
-  const all = conn().prepare('SELECT * FROM Complaint').all() as unknown as ComplaintRow[]
+  const all = conn().prepare('SELECT * FROM Complaint WHERE IsDeleted = 0').all() as unknown as ComplaintRow[]
   const xs = all.filter((r) => r.Category === '0')
   const map = new Map<string, number>()
   for (const row of xs) {
@@ -626,26 +694,59 @@ export function groupStats(field: 'ClueSource' | 'DisposeForm' | 'UndertakeDept'
 export function listDictClasses(): DictClassRow[] {
   return conn()
     .prepare(
-      `SELECT c.*, (SELECT COUNT(*) FROM DictionaryItem i WHERE i.ClassId = c.Id) AS itemCount
-       FROM DictionaryClass c ORDER BY c.Id`,
+      `SELECT c.*, (SELECT COUNT(*) FROM DictionaryItem i WHERE i.ClassId = c.Id AND i.IsDeleted = 0) AS itemCount
+       FROM DictionaryClass c WHERE c.IsDeleted = 0 ORDER BY c.Id`,
     )
     .all() as unknown as DictClassRow[]
 }
 
 export function listDictItems(classId: number): DictItemRow[] {
-  return conn()
-    .prepare('SELECT * FROM DictionaryItem WHERE ClassId = @classId ORDER BY SortOrder, Id')
+  const rows = conn()
+    .prepare('SELECT * FROM DictionaryItem WHERE IsDeleted = 0 AND ClassId = @classId ORDER BY SortOrder, Id')
     .all({ classId }) as unknown as DictItemRow[]
+  return buildDictTree(rows)
+}
+
+function buildDictTree(rows: DictItemRow[]): DictItemRow[] {
+  const map = new Map<number, DictItemRow>()
+  for (const row of rows) map.set(row.Id, { ...row, children: [] })
+  const roots: DictItemRow[] = []
+  for (const row of map.values()) {
+    const parent = row.ParentId ? map.get(row.ParentId) : undefined
+    if (parent) parent.children!.push(row)
+    else roots.push(row)
+  }
+  for (const row of map.values()) if (!row.children?.length) delete row.children
+  return roots
 }
 
 export function dictOptions(className: string): Array<{ label: string; value: string }> {
-  return conn()
+  const rows = conn()
     .prepare(
-      `SELECT i.ItemValue AS label, i.ItemKey AS value
+      `SELECT i.Id, i.ParentId, i.ItemValue AS ItemValue, i.ItemKey AS ItemKey
        FROM DictionaryItem i JOIN DictionaryClass c ON c.Id = i.ClassId
-       WHERE c.ClassName = @className ORDER BY i.SortOrder, i.Id`,
+       WHERE c.ClassName = @className AND i.IsDeleted = 0 AND c.IsDeleted = 0 ORDER BY i.SortOrder, i.Id`,
     )
-    .all({ className }) as Array<{ label: string; value: string }>
+    .all({ className }) as unknown as Array<{ Id: number; ParentId: number | null; ItemKey: string; ItemValue: string }>
+  const childrenOf = new Map<number, typeof rows>()
+  const roots: typeof rows = []
+  for (const row of rows) {
+    if (!row.ParentId) {
+      roots.push(row)
+      continue
+    }
+    const list = childrenOf.get(row.ParentId) ?? []
+    list.push(row)
+    childrenOf.set(row.ParentId, list)
+  }
+  const flat: Array<{ label: string; value: string }> = []
+  for (const root of roots) {
+    flat.push({ label: root.ItemValue, value: root.ItemKey })
+    for (const child of childrenOf.get(root.Id) ?? []) {
+      flat.push({ label: `　${child.ItemValue}`, value: child.ItemKey })
+    }
+  }
+  return flat
 }
 
 export function dictLabelMap(className: string): Record<string, string> {
@@ -672,14 +773,15 @@ export function saveDictClass(input: { id?: number; className: string; descripti
 export function deleteDictClass(id: number): void {
   const c = conn()
   c.transaction(() => {
-    c.prepare('DELETE FROM DictionaryItem WHERE ClassId = @id').run({ id })
-    c.prepare('DELETE FROM DictionaryClass WHERE Id = @id').run({ id })
+    c.prepare('UPDATE DictionaryItem SET IsDeleted = 1, DeleteTime = @time WHERE ClassId = @id').run({ id, time: now() })
+    c.prepare('UPDATE DictionaryClass SET IsDeleted = 1, DeleteTime = @time WHERE Id = @id').run({ id, time: now() })
   })
 }
 
 export function saveDictItem(input: {
   id?: number
   classId: number
+  parentId: number | null
   itemKey: string
   itemValue: string
   sortOrder: number
@@ -689,22 +791,32 @@ export function saveDictItem(input: {
   const time = now()
   if (input.id) {
     c.prepare(
-      `UPDATE DictionaryItem SET ItemKey = @itemKey, ItemValue = @itemValue, SortOrder = @sortOrder,
-       Description = @description, UpdateTime = @time WHERE Id = @id`,
+      `UPDATE DictionaryItem SET ParentId = @parentId, ItemKey = @itemKey, ItemValue = @itemValue,
+       SortOrder = @sortOrder, Description = @description, UpdateTime = @time WHERE Id = @id`,
     ).run({ ...input, time })
     return input.id
   }
   const info = c
     .prepare(
-      `INSERT INTO DictionaryItem (ClassId, ItemKey, ItemValue, SortOrder, Description, CreateTime, UpdateTime)
-       VALUES (@classId, @itemKey, @itemValue, @sortOrder, @description, @time, @time)`,
+      `INSERT INTO DictionaryItem (ClassId, ParentId, ItemKey, ItemValue, SortOrder, Description, CreateTime, UpdateTime)
+       VALUES (@classId, @parentId, @itemKey, @itemValue, @sortOrder, @description, @time, @time)`,
     )
     .run({ ...input, time })
   return Number(info.lastInsertRowid)
 }
 
 export function deleteDictItem(id: number): void {
-  conn().prepare('DELETE FROM DictionaryItem WHERE Id = @id').run({ id })
+  const c = conn()
+  c.transaction(() => {
+    const time = now()
+    c.prepare('UPDATE DictionaryItem SET IsDeleted = 1, DeleteTime = @time WHERE ParentId = @id').run({ id, time })
+    c.prepare('UPDATE DictionaryItem SET IsDeleted = 1, DeleteTime = @time WHERE Id = @id').run({ id, time })
+  })
+}
+
+export function getDictItem(id: number): DictItemRow | null {
+  const row = conn().prepare('SELECT * FROM DictionaryItem WHERE Id = @id AND IsDeleted = 0').get({ id }) as unknown as DictItemRow
+  return row ?? null
 }
 
 export interface LogFilter {

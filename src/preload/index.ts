@@ -14,6 +14,7 @@ const api = {
     nextCode: () => invoke('complaint:nextCode'),
     save: (payload: { isNew: boolean; data: Record<string, string | null> }) => invoke('complaint:save', payload),
     remove: (codes: string[]) => invoke('complaint:delete', codes),
+    restore: (codes: string[]) => invoke('complaint:restore', codes),
     clueOptions: () => invoke('complaint:clueOptions'),
     letters: (clueCode: string) => invoke('complaint:letters', clueCode),
     assign: (payload: { codes: string[]; clueCode: string | null }) => invoke('complaint:assign', payload),
@@ -40,7 +41,8 @@ const api = {
     removeItem: (id: number) => invoke('dict:item:delete', id),
   },
   users: {
-    list: () => invoke('users:list'),
+    list: (options?: { deleted?: boolean }) => invoke('users:list', options),
+    restore: (id: number) => invoke('users:restore', id),
     save: (input: unknown) => invoke('users:save', input),
     remove: (id: number) => invoke('users:delete', id),
     resetPassword: (payload: { id: number; password: string }) => invoke('users:resetPassword', payload),
@@ -58,6 +60,12 @@ const api = {
     complaints: (payload?: string[] | { codes?: string[]; category?: string }) => invoke('export:complaints', payload),
     logs: (filter: unknown) => invoke('export:logs', filter),
     stats: () => invoke('export:stats'),
+  },
+  settings: {
+    get: () => invoke('settings:get'),
+    pick: (kind: 'db' | 'attachments') => invoke('settings:pick', kind),
+    save: (payload: { dbPath: string; attachmentsDir: string; copyData?: boolean }) =>
+      invoke('settings:save', payload),
   },
   app: {
     meta: () => invoke('app:meta'),

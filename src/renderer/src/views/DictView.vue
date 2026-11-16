@@ -3,7 +3,10 @@
     <header class="page-head">
       <div>
         <h1 class="page-title">基础字典</h1>
-        <p class="page-subtitle">{{ classes.length }} 个字典分类 · {{ totalItems }} 个字典项</p>
+        <p class="page-subtitle">
+          {{ classes.length }} 个字典分类 · {{ totalItems }} 个字典项 ·
+          结构：字典分类（一级）→ 字典项（二级）→ 子项（三级）
+        </p>
       </div>
     </header>
 
@@ -37,13 +40,26 @@
       <section class="pane pane-right">
         <header class="pane-head">
           <span class="pane-title">{{ activeClass?.ClassName || '字典项' }}</span>
-          <el-button type="primary" size="small" :icon="Plus" :disabled="!activeId" @click="openItemCreate">
+          <el-button type="primary" size="small" :icon="Plus" :disabled="!activeId" @click="openItemCreate()">
             新增字典项
           </el-button>
         </header>
-        <el-table :data="items" border stripe size="small">
+        <el-table
+          :data="items"
+          row-key="Id"
+          :tree-props="{ children: 'children' }"
+          default-expand-all
+          border
+          stripe
+          size="small"
+        >
           <el-table-column prop="ItemKey" label="键值" min-width="120" class-name="cell-mono" />
-          <el-table-column prop="ItemValue" label="显示值" min-width="160" />
+          <el-table-column label="显示值" min-width="180">
+            <template #default="{ row }">
+              <span class="level-dot" :class="row.ParentId ? 'level-3' : 'level-2'" />
+              {{ row.ItemValue }}
+            </template>
+          </el-table-column>
           <el-table-column prop="SortOrder" label="排序" width="70" align="center" />
           <el-table-column label="说明" min-width="160" show-overflow-tooltip>
             <template #default="{ row }">
@@ -51,8 +67,9 @@
               <span v-else class="muted">—</span>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="120">
+          <el-table-column label="操作" width="188">
             <template #default="{ row }">
+              <el-button v-if="!row.ParentId" link type="primary" @click="openItemCreate(row)">子项</el-button>
               <el-button link type="primary" @click="openItemEdit(row)">编辑</el-button>
               <el-button link type="danger" @click="removeItem(row)">删除</el-button>
             </template>
@@ -81,6 +98,16 @@
 
     <el-dialog v-model="itemDialog" :title="itemForm.id ? '编辑字典项' : '新增字典项'" width="30rem" destroy-on-close>
       <el-form :model="itemForm" label-width="5.5rem">
+        <el-form-item label="上级项">
+          <el-select v-model="itemForm.parentId" clearable placeholder="无（二级字典项）" :disabled="itemForm.id > 0" class="fill">
+            <el-option
+              v-for="root in rootItems"
+              :key="root.Id"
+              :label="`${root.ItemValue}（${root.ItemKey}）`"
+              :value="root.Id"
+            />
+          </el-select>
+        </el-form-item>
         <el-form-item label="键值" required>
           <el-input v-model="itemForm.itemKey" placeholder="如 XS1001" />
         </el-form-item>
@@ -117,10 +144,12 @@ type DictClass = {
 type DictItem = {
   Id: number
   ClassId: number
+  ParentId: number | null
   ItemKey: string
   ItemValue: string
   SortOrder: number
   Description: string | null
+  children?: DictItem[]
 }
 
 const classes = ref<DictClass[]>([])
@@ -131,10 +160,11 @@ const itemDialog = ref(false)
 const saving = ref(false)
 
 const classForm = reactive({ id: 0, className: '', description: '' })
-const itemForm = reactive({ id: 0, itemKey: '', itemValue: '', sortOrder: 0, description: '' })
+const itemForm = reactive({ id: 0, parentId: null as number | null, itemKey: '', itemValue: '', sortOrder: 0, description: '' })
 
 const activeClass = computed(() => classes.value.find((item) => item.Id === activeId.value) ?? null)
 const totalItems = computed(() => classes.value.reduce((sum, item) => sum + item.itemCount, 0))
+const rootItems = computed(() => items.value.filter((item) => !item.ParentId))
 
 async function loadClasses(keepId?: number): Promise<void> {
   const res = await window.api.dict.classes()
@@ -211,14 +241,22 @@ async function removeClass(row: DictClass): Promise<void> {
   await loadClasses()
 }
 
-function openItemCreate(): void {
-  Object.assign(itemForm, { id: 0, itemKey: '', itemValue: '', sortOrder: 0, description: '' })
+function openItemCreate(parent?: DictItem): void {
+  Object.assign(itemForm, {
+    id: 0,
+    parentId: parent?.Id ?? null,
+    itemKey: '',
+    itemValue: '',
+    sortOrder: 0,
+    description: '',
+  })
   itemDialog.value = true
 }
 
 function openItemEdit(row: DictItem): void {
   Object.assign(itemForm, {
     id: row.Id,
+    parentId: row.ParentId,
     itemKey: row.ItemKey,
     itemValue: row.ItemValue,
     sortOrder: row.SortOrder,
@@ -238,6 +276,7 @@ async function submitItem(): Promise<void> {
     const res = await window.api.dict.saveItem({
       id: itemForm.id || undefined,
       classId: activeId.value,
+      parentId: itemForm.parentId ?? null,
       itemKey: itemForm.itemKey.trim(),
       itemValue: itemForm.itemValue.trim(),
       sortOrder: itemForm.sortOrder,
@@ -274,6 +313,23 @@ onMounted(() => loadClasses())
 </script>
 
 <style scoped>
+.level-dot {
+  display: inline-block;
+  width: 0.3125rem;
+  height: 0.3125rem;
+  border-radius: 50%;
+  margin-right: 0.375rem;
+  vertical-align: 0.0625rem;
+}
+
+.level-2 {
+  background: var(--harbor);
+}
+
+.level-3 {
+  background: var(--rule-2);
+}
+
 .page {
   padding: 1.5rem 1.75rem 2rem;
   display: flex;
