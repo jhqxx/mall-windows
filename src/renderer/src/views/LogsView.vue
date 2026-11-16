@@ -88,6 +88,8 @@ const LABELS: Record<string, string> = {
   delete_attachment: '删除附件',
   download_attachment: '下载附件',
   export_csv: '导出日志',
+  save_dict_group: '维护字典分组',
+  delete_dict_group: '删除字典分组',
   save_dict_type: '维护字典类型',
   delete_dict_type: '删除字典类型',
   save_dict_item: '维护枚举项',

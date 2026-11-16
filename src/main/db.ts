@@ -64,12 +64,22 @@ export type CaseInput = {
   remark: string | null
 }
 
+export type DictGroupRow = {
+  id: number
+  name: string
+  sort_no: number
+  remark: string | null
+  created_at: string
+  type_count: number
+}
+
 export type DictTypeRow = {
   id: number
   code: string
   name: string
   remark: string | null
   builtin: number
+  group_id: number | null
   created_at: string
   item_count: number
 }
@@ -164,7 +174,15 @@ const MIGRATIONS: string[] = [
     updated_at TEXT NOT NULL,
     UNIQUE (type_code, value)
   );`,
-  `CREATE INDEX IF NOT EXISTS idx_dict_items_type ON dict_items (type_code, sort_no);`
+  `CREATE INDEX IF NOT EXISTS idx_dict_items_type ON dict_items (type_code, sort_no);`,
+  `CREATE TABLE IF NOT EXISTS dict_groups (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,
+    sort_no INTEGER NOT NULL DEFAULT 0,
+    remark TEXT,
+    created_at TEXT NOT NULL
+  );`,
+  `ALTER TABLE dict_types ADD COLUMN group_id INTEGER;`
 ]
 
 export const nowIso = (): string => new Date().toISOString()
@@ -230,18 +248,34 @@ function seed(): void {
 }
 
 // 内置字典：与表单里的下拉项一一对应，可改列表但不能删除类型本身。
-const DICT_SEEDS: { code: string; name: string; items: string[] }[] = [
-  { code: 'case_type', name: '案件类型', items: ['投诉举报', '业务咨询', '违规线索', '服务纠纷', '其他'] },
-  { code: 'leader_approval', name: '领导签批', items: ['同意', '不同意', '待签批'] },
-  { code: 'approval_status', name: '签批情况', items: ['已签批', '部分签批', '未签批'] },
-  { code: 'yes_no', name: '是否', items: ['是', '否'] }
+const DICT_GROUPS: { name: string; sort: number; remark: string }[] = [
+  { name: '案件业务', sort: 1, remark: '案件办理单上的选项' },
+  { name: '签批流程', sort: 2, remark: '签批与审核相关选项' },
+  { name: '通用选项', sort: 3, remark: '跨模块复用的基础选项' }
+]
+
+const DICT_SEEDS: { code: string; name: string; group: string; items: string[] }[] = [
+  { code: 'case_type', name: '案件类型', group: '案件业务', items: ['投诉举报', '业务咨询', '违规线索', '服务纠纷', '其他'] },
+  { code: 'leader_approval', name: '领导签批', group: '签批流程', items: ['同意', '不同意', '待签批'] },
+  { code: 'approval_status', name: '签批情况', group: '签批流程', items: ['已签批', '部分签批', '未签批'] },
+  { code: 'yes_no', name: '是否', group: '通用选项', items: ['是', '否'] }
 ]
 
 function seedDictionaries(conn: SqliteHandle): void {
   const ts = nowIso()
+  const insertGroup = conn.prepare(
+    `INSERT INTO dict_groups (name, sort_no, remark, created_at)
+     VALUES (?, ?, ?, ?)
+     ON CONFLICT(name) DO NOTHING`
+  )
+  for (const group of DICT_GROUPS) insertGroup.run(group.name, group.sort, group.remark, ts)
+  const groupIds = new Map<string, number>()
+  for (const row of conn.prepare('SELECT id, name FROM dict_groups').all() as { id: number; name: string }[]) {
+    groupIds.set(row.name, row.id)
+  }
   const insertType = conn.prepare(
-    `INSERT INTO dict_types (code, name, remark, builtin, created_at)
-     VALUES (?, ?, ?, 1, ?)
+    `INSERT INTO dict_types (code, name, remark, builtin, group_id, created_at)
+     VALUES (?, ?, ?, 1, ?, ?)
      ON CONFLICT(code) DO NOTHING`
   )
   const insertItem = conn.prepare(
@@ -249,9 +283,17 @@ function seedDictionaries(conn: SqliteHandle): void {
      VALUES (?, ?, ?, ?, 1, NULL, ?, ?)
      ON CONFLICT(type_code, value) DO NOTHING`
   )
+  const assignGroup = conn.prepare('UPDATE dict_types SET group_id = ? WHERE code = ? AND group_id IS NULL')
   for (const dict of DICT_SEEDS) {
-    insertType.run(dict.code, dict.name, '系统内置字典', ts)
+    insertType.run(dict.code, dict.name, '系统内置字典', groupIds.get(dict.group) ?? null, ts)
+    assignGroup.run(groupIds.get(dict.group) ?? null, dict.code)
     dict.items.forEach((label, index) => insertItem.run(dict.code, label, label, index + 1, ts, ts))
+  }
+  const orphans = conn.prepare('SELECT COUNT(*) AS c FROM dict_types WHERE group_id IS NULL').get() as { c: number }
+  if (orphans.c > 0) {
+    insertGroup.run('未分组', 99, '升级时未能自动归类的字典', ts)
+    const row = conn.prepare("SELECT id FROM dict_groups WHERE name = '未分组'").get() as { id: number }
+    conn.prepare('UPDATE dict_types SET group_id = ? WHERE group_id IS NULL').run(row.id)
   }
 }
 
@@ -556,14 +598,52 @@ export function stats(): { cases: number; attachments: number; logs: number; dri
   return { cases: c.n, attachments: a.n, logs: l.n, driver: conn.driver }
 }
 
-export function listDictTypes(): DictTypeRow[] {
+export function listDictGroups(): DictGroupRow[] {
   return conn_()
     .prepare(
-      `SELECT t.*, (SELECT COUNT(*) FROM dict_items i WHERE i.type_code = t.code) AS item_count
-       FROM dict_types t
-       ORDER BY t.builtin DESC, t.id ASC`
+      `SELECT g.*, (SELECT COUNT(*) FROM dict_types t WHERE t.group_id = g.id) AS type_count
+       FROM dict_groups g
+       ORDER BY g.sort_no ASC, g.id ASC`
     )
-    .all() as DictTypeRow[]
+    .all() as DictGroupRow[]
+}
+
+export function saveDictGroup(input: {
+  id?: number
+  name: string
+  sortNo?: number
+  remark?: string | null
+}): DictGroupRow {
+  const conn = conn_()
+  if (input.id) {
+    conn
+      .prepare('UPDATE dict_groups SET name = ?, sort_no = ?, remark = ? WHERE id = ?')
+      .run(input.name, input.sortNo ?? 0, input.remark ?? null, input.id)
+    return conn.prepare('SELECT * FROM dict_groups WHERE id = ?').get(input.id) as DictGroupRow
+  }
+  const info = conn
+    .prepare('INSERT INTO dict_groups (name, sort_no, remark, created_at) VALUES (?, ?, ?, ?)')
+    .run(input.name, input.sortNo ?? 0, input.remark ?? null, nowIso())
+  return conn.prepare('SELECT * FROM dict_groups WHERE id = ?').get(Number(info.lastInsertRowid)) as DictGroupRow
+}
+
+export function deleteDictGroup(id: number): { ok: boolean; message?: string; name?: string } {
+  const conn = conn_()
+  const row = conn.prepare('SELECT * FROM dict_groups WHERE id = ?').get(id) as DictGroupRow | undefined
+  if (!row) return { ok: false, message: '分组不存在' }
+  const used = conn.prepare('SELECT COUNT(*) AS c FROM dict_types WHERE group_id = ?').get(id) as { c: number }
+  if (used.c > 0) return { ok: false, message: '该分组下还有字典，先移走或删除' }
+  conn.prepare('DELETE FROM dict_groups WHERE id = ?').run(id)
+  return { ok: true, name: row.name }
+}
+
+export function listDictTypes(groupId?: number): DictTypeRow[] {
+  const conn = conn_()
+  const sql = `SELECT t.*, (SELECT COUNT(*) FROM dict_items i WHERE i.type_code = t.code) AS item_count
+       FROM dict_types t`
+  const order = ' ORDER BY t.builtin DESC, t.id ASC'
+  if (groupId === undefined) return conn.prepare(sql + order).all() as DictTypeRow[]
+  return conn.prepare(sql + ' WHERE t.group_id = ?' + order).all(groupId) as DictTypeRow[]
 }
 
 export function listDictItems(typeCode: string): DictItemRow[] {
@@ -585,16 +665,19 @@ export function saveDictType(input: {
   id?: number
   code: string
   name: string
+  groupId?: number | null
   remark?: string | null
 }): DictTypeRow {
   const conn = conn_()
   if (input.id) {
-    conn.prepare('UPDATE dict_types SET name = ?, remark = ? WHERE id = ?').run(input.name, input.remark ?? null, input.id)
+    conn
+      .prepare('UPDATE dict_types SET name = ?, remark = ?, group_id = ? WHERE id = ?')
+      .run(input.name, input.remark ?? null, input.groupId ?? null, input.id)
     return conn.prepare('SELECT * FROM dict_types WHERE id = ?').get(input.id) as DictTypeRow
   }
   const info = conn
-    .prepare('INSERT INTO dict_types (code, name, remark, builtin, created_at) VALUES (?, ?, ?, 0, ?)')
-    .run(input.code, input.name, input.remark ?? null, nowIso())
+    .prepare('INSERT INTO dict_types (code, name, remark, builtin, group_id, created_at) VALUES (?, ?, ?, 0, ?, ?)')
+    .run(input.code, input.name, input.remark ?? null, input.groupId ?? null, nowIso())
   return conn.prepare('SELECT * FROM dict_types WHERE id = ?').get(Number(info.lastInsertRowid)) as DictTypeRow
 }
 

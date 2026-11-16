@@ -28,11 +28,20 @@ const api = {
     exportCsv: () => ipcRenderer.invoke('log:export')
   },
   dict: {
-    types: () => ipcRenderer.invoke('dict:types'),
+    groups: () => ipcRenderer.invoke('dict:groups'),
+    saveGroup: (payload: { id?: number; name: string; sortNo?: number; remark?: string | null }) =>
+      ipcRenderer.invoke('dict:group:save', payload),
+    removeGroup: (payload: { id: number }) => ipcRenderer.invoke('dict:group:delete', payload),
+    types: (payload?: { groupId?: number }) => ipcRenderer.invoke('dict:types', payload),
     items: (payload: { typeCode: string }) => ipcRenderer.invoke('dict:items', payload),
     options: (payload: { code: string }) => ipcRenderer.invoke('dict:options', payload),
-    saveType: (payload: { id?: number; code: string; name: string; remark?: string | null }) =>
-      ipcRenderer.invoke('dict:type:save', payload),
+    saveType: (payload: {
+      id?: number
+      code: string
+      name: string
+      groupId?: number | null
+      remark?: string | null
+    }) => ipcRenderer.invoke('dict:type:save', payload),
     removeType: (payload: { id: number }) => ipcRenderer.invoke('dict:type:delete', payload),
     saveItem: (payload: {
       id?: number
