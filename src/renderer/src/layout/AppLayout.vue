@@ -63,7 +63,7 @@
 import { computed, markRaw, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowDown, Collection, Files, Odometer, Tickets, User } from '@element-plus/icons-vue'
+import { ArrowDown, Collection, Files, Odometer, Tickets, User, Guide } from '@element-plus/icons-vue'
 import { setUser, session } from '@/stores/session'
 import logoColor from '@/assets/logo-color.png'
 import logoMark from '@/assets/logo-mark.png'
@@ -76,6 +76,7 @@ const platform = ref('')
 const navItems = computed(() =>
   [
     { path: '/home', label: '首页统计', icon: markRaw(Odometer) },
+    { path: '/clues', label: '线索管理', icon: markRaw(Guide) },
     { path: '/complaints', label: '信访管理', icon: markRaw(Files) },
     { path: '/dicts', label: '基础字典', icon: markRaw(Collection) },
     { path: '/users', label: '用户管理', icon: markRaw(User), admin: true },
@@ -84,12 +85,14 @@ const navItems = computed(() =>
 )
 
 const activePath = computed(() => {
+  if (route.path.startsWith('/clues')) return '/clues'
   if (route.path.startsWith('/complaints')) return '/complaints'
   return route.path
 })
 
 const titles: Record<string, string> = {
   '/home': '首页统计',
+  '/clues': '线索管理',
   '/complaints': '信访管理',
   '/complaints/new': '新增信访',
   '/dicts': '基础字典',
@@ -97,7 +100,8 @@ const titles: Record<string, string> = {
   '/logs': '操作日志'
 }
 const currentTitle = computed(() => {
-  if (route.path.startsWith('/complaints/') && route.path.endsWith('/edit')) return '编辑信访'
+  if (route.path.startsWith('/complaints/') && route.path.endsWith('/edit')) return '编辑信访件'
+  if (route.path.startsWith('/clues/') && route.path.endsWith('/edit')) return '编辑线索'
   return titles[route.path] ?? '信访管理系统'
 })
 const initial = computed(() => (session.user?.realName ?? session.user?.username ?? 'U').slice(0, 1))

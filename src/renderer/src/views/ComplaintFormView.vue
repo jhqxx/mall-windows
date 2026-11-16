@@ -4,7 +4,7 @@
       <div class="head-left">
         <el-button :icon="ArrowLeft" @click="goBack">返回</el-button>
         <div>
-          <h1 class="page-title">{{ isNew ? '新增信访' : '编辑信访' }}</h1>
+          <h1 class="page-title">{{ pageTitle }}</h1>
           <p class="page-subtitle mono">{{ form.OriginalCode || '编号自动生成' }}</p>
         </div>
       </div>
@@ -27,9 +27,17 @@
       <section class="block">
         <h2 class="block-title">基本信息</h2>
         <div class="grid">
-          <el-form-item label="信访类别">
-            <el-select v-model="form.Category" class="fill">
-              <el-option v-for="o in options.信访类别" :key="o.value" :label="o.label" :value="o.value" />
+          <el-form-item label="类别">
+            <el-input :model-value="categoryName" disabled />
+          </el-form-item>
+          <el-form-item v-if="!isClue" label="所属线索">
+            <el-select v-model="form.ParentCode" class="fill" clearable filterable placeholder="未归并">
+              <el-option
+                v-for="item in clueChoices"
+                :key="item.code"
+                :label="`${item.code} · ${item.name}`"
+                :value="item.code"
+              />
             </el-select>
           </el-form-item>
           <el-form-item label="线索来源">
@@ -281,6 +289,13 @@ const undertakeDepts = ref<string[]>([])
 
 const code = computed(() => (route.params.code as string) ?? '')
 const isNew = computed(() => !code.value)
+const isClue = computed(() => route.meta.kind === 'clue')
+const pageTitle = computed(() => {
+  const noun = isClue.value ? '线索' : '信访件'
+  return isNew.value ? `新增${noun}` : `编辑${noun}`
+})
+const categoryName = computed(() => (isClue.value ? '问题线索' : '信访件'))
+const clueChoices = ref<Array<{ code: string; name: string; summary: string }>>([])
 const isUnit = computed(() => form.TargetType === 'ORG')
 
 const form = reactive<Record<string, any>>({
@@ -288,6 +303,7 @@ const form = reactive<Record<string, any>>({
   NewCode: '',
   CategoryCode: '',
   Category: '0',
+  ParentCode: '',
   ClueSource: '',
   ReceiveTime: '',
   TargetType: 'IND',
@@ -391,6 +407,8 @@ async function save(): Promise<void> {
   saving.value = true
   try {
     const payload = { ...form }
+    payload.Category = isClue.value ? '0' : '1'
+    if (isClue.value) payload.ParentCode = null
     payload.AssignDept = assignDepts.value.join(',')
     payload.UndertakeDept = undertakeDepts.value.join(',')
     for (const key of Object.keys(payload)) {
@@ -403,7 +421,7 @@ async function save(): Promise<void> {
       return
     }
     ElMessage.success(isNew.value ? '新增成功' : '保存成功')
-    router.replace('/complaints')
+    router.replace(isClue.value ? '/clues' : '/complaints')
   } finally {
     saving.value = false
   }
@@ -455,11 +473,17 @@ function onAttachSelect(list: Attachment[]): void {
 }
 
 function goBack(): void {
-  router.push('/complaints')
+  router.push(isClue.value ? '/clues' : '/complaints')
 }
 
 onMounted(async () => {
   await loadOptions()
+  if (!isClue.value) {
+    const res = await window.api.complaints.clueOptions()
+    if (res?.ok) clueChoices.value = res.data
+    const fromQuery = route.query.clue
+    if (isNew.value && typeof fromQuery === 'string') form.ParentCode = fromQuery
+  }
   if (isNew.value) {
     const res = await window.api.complaints.nextCode()
     if (res?.ok) form.OriginalCode = res.data

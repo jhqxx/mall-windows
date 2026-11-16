@@ -1,6 +1,7 @@
 import { app } from 'electron'
 import fs from 'node:fs'
 import path from 'node:path'
+import { hashPassword, isHashed, verifyPassword } from './password'
 import { openDatabase, type DriverName, type SqliteHandle } from './sqlite-driver'
 import { createSchema, seedIfEmpty } from './schema'
 
@@ -31,6 +32,10 @@ export type ComplaintRow = Record<string, string | number | null> & { Id: number
 
 export interface ComplaintFilter {
   category?: string
+  /** none = 未归并到线索，any = 已归并 */
+  parent?: string
+  /** 只看某条线索下的信访件 */
+  clue?: string
   isOverdue?: string
   reportForm?: string
   isCompleted?: string
@@ -106,6 +111,14 @@ export function getPaths() {
   return paths
 }
 
+/** 老库补列：ParentCode 用于「线索（主）→ 信访件（子）」归属 */
+function ensureComplaintColumns(handle: SqliteHandle): void {
+  const columns = handle.prepare("PRAGMA table_info('Complaint')").all() as unknown as Array<{ name: string }>
+  if (!columns.some((column) => column.name === 'ParentCode')) {
+    handle.exec('ALTER TABLE Complaint ADD COLUMN ParentCode TEXT')
+  }
+}
+
 export function initDb(): void {
   const p = getPaths()
   fs.mkdirSync(p.attachmentsDir, { recursive: true })
@@ -114,11 +127,14 @@ export function initDb(): void {
   db.pragma('busy_timeout = 5000')
   db.pragma('foreign_keys = ON')
   createSchema(db)
+  ensureComplaintColumns(db)
   try {
     seedIfEmpty(db)
   } catch (error) {
     console.error('[db] 种子数据导入失败：', error)
   }
+  const upgraded = upgradePlainPasswords()
+  if (upgraded > 0) console.log(`[db] 已将 ${upgraded} 个明文密码升级为 scrypt 哈希`)
 }
 
 function conn(): SqliteHandle {
@@ -145,12 +161,39 @@ export function toSessionUser(row: UserRow): SessionUser {
 }
 
 export function findUserByLogin(username: string, password: string): UserRow | null {
-  const row = conn()
-    .prepare(
-      'SELECT * FROM Users WHERE Username = @username AND Password = @password AND IsActive = 1',
-    )
-    .get({ username, password }) as unknown as UserRow | undefined
-  return row ?? null
+  const c = conn()
+  const row = c
+    .prepare('SELECT * FROM Users WHERE Username = @username AND IsActive = 1')
+    .get({ username }) as unknown as UserRow | undefined
+  if (!row) return null
+  const result = verifyPassword(password, row.Password)
+  if (!result.ok) return null
+  if (result.legacy) {
+    c.prepare('UPDATE Users SET Password = @password WHERE Id = @id').run({
+      id: row.Id,
+      password: hashPassword(password),
+    })
+  }
+  return row
+}
+
+/** 把库里遗留的明文密码统一升级为 scrypt 哈希（老库进来自动迁移） */
+export function upgradePlainPasswords(): number {
+  const c = conn()
+  const rows = c.prepare('SELECT Id, Password FROM Users').all() as unknown as Array<{
+    Id: number
+    Password: string | null
+  }>
+  let changed = 0
+  for (const row of rows) {
+    if (isHashed(row.Password)) continue
+    c.prepare('UPDATE Users SET Password = @password WHERE Id = @id').run({
+      id: row.Id,
+      password: hashPassword(row.Password ?? ''),
+    })
+    changed += 1
+  }
+  return changed
 }
 
 export function getUserById(id: number): UserRow | null {
@@ -204,7 +247,7 @@ export function saveUser(input: UserInput): number {
     }
     if (input.password) {
       sets.push('Password = @password')
-      params.password = input.password
+      params.password = hashPassword(input.password)
     }
     c.prepare(`UPDATE Users SET ${sets.join(', ')} WHERE Id = @id`).run(params)
     return input.id
@@ -216,7 +259,7 @@ export function saveUser(input: UserInput): number {
     )
     .run({
       username: input.username,
-      password: input.password ?? '',
+      password: hashPassword(input.password ?? ''),
       realName: input.realName,
       role: input.role,
       department: input.department,
@@ -233,7 +276,9 @@ export function deleteUser(id: number): void {
 }
 
 export function changePassword(id: number, password: string): void {
-  conn().prepare('UPDATE Users SET Password = @password WHERE Id = @id').run({ id, password })
+  conn()
+    .prepare('UPDATE Users SET Password = @password WHERE Id = @id')
+    .run({ id, password: hashPassword(password) })
 }
 
 const TAB_CLAUSES: Record<string, { sql: string; params: Record<string, string> }> = {
@@ -252,6 +297,15 @@ function buildComplaintWhere(filter: ComplaintFilter): { where: string; params: 
   if (filter.category) {
     clauses.push('Category = @category')
     params.category = filter.category
+  }
+  if (filter.parent === 'none') {
+    clauses.push("(ParentCode IS NULL OR ParentCode = '')")
+  } else if (filter.parent === 'any') {
+    clauses.push("(ParentCode IS NOT NULL AND ParentCode <> '')")
+  }
+  if (filter.clue) {
+    clauses.push('ParentCode = @clue')
+    params.clue = filter.clue
   }
   if (filter.isOverdue) {
     clauses.push('IsOverdue = @isOverdue')
@@ -279,7 +333,12 @@ function buildComplaintWhere(filter: ComplaintFilter): { where: string; params: 
   return { where: clauses.length ? `WHERE ${clauses.join(' AND ')}` : '', params }
 }
 
-export function listComplaints(filter: ComplaintFilter): { rows: ComplaintRow[]; total: number } {
+export function listComplaints(filter: ComplaintFilter): {
+  rows: ComplaintRow[]
+  total: number
+  tabs: Record<string, number>
+  childCounts: Record<string, number>
+} {
   const pageSize = Math.max(1, Math.min(200, filter.pageSize ?? 20))
   const page = Math.max(1, filter.page ?? 1)
   const { where, params } = buildComplaintWhere(filter)
@@ -291,10 +350,73 @@ export function listComplaints(filter: ComplaintFilter): { rows: ComplaintRow[];
       `SELECT * FROM Complaint ${where} ORDER BY ReceiveTime DESC, Id DESC LIMIT @limit OFFSET @offset`,
     )
     .all({ ...params, limit: pageSize, offset: (page - 1) * pageSize }) as unknown as ComplaintRow[]
-  return { rows, total }
+  return { rows, total, tabs: tabCounts(filter), childCounts: childCounts(rows) }
 }
 
-export function complaintsForExport(codes?: string[]): ComplaintRow[] {
+/** 线索 → 名下信访件数量（只统计当前页出现的线索，避免整表扫描） */
+function childCounts(rows: ComplaintRow[]): Record<string, number> {
+  const codes = rows.filter((row) => row.Category === '0').map((row) => String(row.OriginalCode))
+  if (!codes.length) return {}
+  const params: Record<string, string> = {}
+  const holes = codes.map((code, index) => {
+    params[`p${index}`] = code
+    return `@p${index}`
+  })
+  const list = conn()
+    .prepare(`SELECT ParentCode, COUNT(*) AS n FROM Complaint WHERE ParentCode IN (${holes.join(',')}) GROUP BY ParentCode`)
+    .all(params) as unknown as Array<{ ParentCode: string; n: number }>
+  const map: Record<string, number> = {}
+  for (const item of list) map[item.ParentCode] = item.n
+  return map
+}
+
+/** 线索下拉（归并信访件时选主单） */
+export function clueOptions(): Array<{ code: string; name: string; summary: string }> {
+  const rows = conn()
+    .prepare(
+      "SELECT OriginalCode, TargetName, OrganizationName, ProblemSummary FROM Complaint WHERE Category = '0' ORDER BY ReceiveTime DESC, Id DESC LIMIT 500",
+    )
+    .all() as unknown as Array<Record<string, string | null>>
+  return rows.map((row) => ({
+    code: String(row.OriginalCode),
+    name: String(row.TargetName || row.OrganizationName || '未填写被反映人'),
+    summary: String(row.ProblemSummary || ''),
+  }))
+}
+
+/** 线索名下的信访件 */
+export function lettersOfClue(clueCode: string): ComplaintRow[] {
+  return conn()
+    .prepare('SELECT * FROM Complaint WHERE ParentCode = @clue ORDER BY ReceiveTime DESC, Id DESC')
+    .all({ clue: clueCode }) as unknown as ComplaintRow[]
+}
+
+/** 把信访件归并到线索（clueCode 为空表示移出） */
+export function assignToClue(codes: string[], clueCode: string | null): number {
+  if (!codes.length) return 0
+  if (clueCode) {
+    const clue = conn()
+      .prepare("SELECT Category FROM Complaint WHERE OriginalCode = @code")
+      .get({ code: clueCode }) as { Category: string } | undefined
+    if (!clue) throw new Error('线索不存在')
+    if (clue.Category !== '0') throw new Error('只能归并到问题线索')
+  }
+  const c = conn()
+  const time = now()
+  const params: Record<string, string | null> = { parent: clueCode, time }
+  const holes = codes.map((code, index) => {
+    params[`c${index}`] = code
+    return `@c${index}`
+  })
+  const info = c
+    .prepare(
+      `UPDATE Complaint SET ParentCode = @parent, UpdateTime = @time WHERE OriginalCode IN (${holes.join(',')}) AND Category = '1'`,
+    )
+    .run(params)
+  return Number(info.changes ?? 0)
+}
+
+export function complaintsForExport(codes?: string[], category?: string): ComplaintRow[] {
   if (codes?.length) {
     const params: Record<string, string> = {}
     const holes = codes.map((code, index) => {
@@ -305,21 +427,32 @@ export function complaintsForExport(codes?: string[]): ComplaintRow[] {
       .prepare(`SELECT * FROM Complaint WHERE OriginalCode IN (${holes.join(',')}) ORDER BY ReceiveTime DESC, Id DESC`)
       .all(params) as unknown as ComplaintRow[]
   }
+  if (category) {
+    return conn()
+      .prepare('SELECT * FROM Complaint WHERE Category = @category ORDER BY ReceiveTime DESC, Id DESC')
+      .all({ category }) as unknown as ComplaintRow[]
+  }
   return conn()
     .prepare('SELECT * FROM Complaint ORDER BY ReceiveTime DESC, Id DESC')
     .all() as unknown as ComplaintRow[]
 }
 
-export function tabCounts(): Record<string, number> {
+export function tabCounts(filter: ComplaintFilter = {}): Record<string, number> {
   const c = conn()
-  const pick = (sql: string) => (c.prepare(sql).get() as { n: number }).n
+  const base = buildComplaintWhere({ ...filter, tab: undefined })
+  const inner = base.where.replace(/^WHERE /, '')
+  const count = (clause?: string): number => {
+    const parts = [inner, clause].filter(Boolean).join(' AND ')
+    const sql = `SELECT COUNT(*) AS n FROM Complaint ${parts ? `WHERE ${parts}` : ''}`
+    return (c.prepare(sql).get(base.params) as { n: number }).n
+  }
   return {
-    all: pick('SELECT COUNT(*) AS n FROM Complaint'),
-    real: pick("SELECT COUNT(*) AS n FROM Complaint WHERE ReportForm = 'JB1001'"),
-    anonymous: pick("SELECT COUNT(*) AS n FROM Complaint WHERE ReportForm = 'JB1002'"),
-    processing: pick("SELECT COUNT(*) AS n FROM Complaint WHERE IsCompleted = 'BJ1002'"),
-    completed: pick("SELECT COUNT(*) AS n FROM Complaint WHERE IsCompleted = 'BJ1001'"),
-    overdue: pick("SELECT COUNT(*) AS n FROM Complaint WHERE IsOverdue = 'CQ1001'"),
+    all: count(),
+    real: count("ReportForm = 'JB1001'"),
+    anonymous: count("ReportForm = 'JB1002'"),
+    processing: count("IsCompleted = 'BJ1002'"),
+    completed: count("IsCompleted = 'BJ1001'"),
+    overdue: count("IsOverdue = 'CQ1001'"),
   }
 }
 
@@ -344,6 +477,7 @@ export function saveComplaint(input: Record<string, string | null>, isNew: boole
   const c = conn()
   const time = now()
   const data: Record<string, string | null> = { ...input }
+  if (String(data.Category ?? '') === '0') data.ParentCode = null
   data.CreateTime = isNew ? time : ((input.CreateTime as string) ?? time)
   data.UpdateTime = time
   const columns = Object.keys(data)

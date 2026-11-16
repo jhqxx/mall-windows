@@ -7,6 +7,9 @@ import path from 'node:path'
 import {
   addAttachment,
   addLog,
+  assignToClue,
+  clueOptions,
+  lettersOfClue,
   changePassword,
   copyAttachmentTo,
   deleteAttachments,
@@ -130,7 +133,39 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
 
   ipcMain.handle('complaint:list', (_e, filter: ComplaintFilter) => {
     requireUser()
-    return ok({ ...listComplaints(filter), tabs: tabCounts() })
+    return ok(listComplaints(filter))
+  })
+
+  ipcMain.handle('complaint:clueOptions', () => {
+    requireUser()
+    return ok(clueOptions())
+  })
+
+  ipcMain.handle('complaint:letters', (_e, clueCode: string) => {
+    requireUser()
+    return ok(lettersOfClue(clueCode))
+  })
+
+  ipcMain.handle('complaint:assign', (_e, payload: { codes: string[]; clueCode: string | null }) => {
+    const user = requireUser()
+    try {
+      const changed = assignToClue(payload.codes ?? [], payload.clueCode ?? null)
+      addLog({
+        userName: user.username,
+        userRealName: user.realName,
+        userRole: user.role,
+        operationType: payload.clueCode ? '归并' : '移出',
+        operationModule: '线索管理',
+        operationContent: payload.clueCode
+          ? `将信访件 ${payload.codes.join('、')} 归并到线索 ${payload.clueCode}`
+          : `将信访件 ${payload.codes.join('、')} 移出线索`,
+        targetId: payload.clueCode ?? payload.codes.join(','),
+        ipAddress: localIp(),
+      })
+      return ok(changed)
+    } catch (error) {
+      return fail(error instanceof Error ? error.message : String(error))
+    }
   })
 
   ipcMain.handle('complaint:get', (_e, code: string) => {
@@ -156,7 +191,7 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
         userRealName: user.realName,
         userRole: user.role,
         operationType: payload.isNew ? '新增' : '修改',
-        operationModule: '信访管理',
+        operationModule: String(data.Category) === '0' ? '线索管理' : '信访管理',
         operationContent: `${payload.isNew ? '新增' : '修改'}信访记录 ${code}`,
         targetId: code,
         targetName: String(data.TargetName ?? ''),
@@ -618,11 +653,14 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`
   }
 
-  ipcMain.handle('export:complaints', async (_e, codes?: string[]) => {
-    const buffer = buildComplaintWorkbook(codes)
-    return saveWorkbook(`信访数据-${stamp()}.xlsx`, buffer, {
-      module: '信访管理',
-      content: codes?.length ? `导出选中信访记录 ${codes.length} 条` : '导出全部信访记录',
+  ipcMain.handle('export:complaints', async (_e, payload?: string[] | { codes?: string[]; category?: string }) => {
+    const codes = Array.isArray(payload) ? payload : payload?.codes
+    const category = Array.isArray(payload) ? undefined : payload?.category
+    const buffer = buildComplaintWorkbook(codes, category)
+    const label = category === '0' ? '线索' : '信访记录'
+    return saveWorkbook(`${label}数据-${stamp()}.xlsx`, buffer, {
+      module: category === '0' ? '线索管理' : '信访管理',
+      content: codes?.length ? `导出选中${label} ${codes.length} 条` : `导出全部${label}`,
     })
   })
 

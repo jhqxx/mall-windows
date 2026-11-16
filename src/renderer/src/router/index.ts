@@ -11,12 +11,41 @@ const router = createRouter({
       redirect: '/home',
       children: [
         { path: 'home', name: 'home', component: () => import('@/views/HomeView.vue') },
-        { path: 'complaints', name: 'complaints', component: () => import('@/views/ComplaintsView.vue') },
-        { path: 'complaints/new', name: 'complaint-new', component: () => import('@/views/ComplaintFormView.vue') },
+        {
+          path: 'clues',
+          name: 'clues',
+          component: () => import('@/views/ComplaintsView.vue'),
+          meta: { kind: 'clue' },
+        },
+        {
+          path: 'clues/new',
+          name: 'clue-new',
+          component: () => import('@/views/ComplaintFormView.vue'),
+          meta: { kind: 'clue' },
+        },
+        {
+          path: 'clues/:code/edit',
+          name: 'clue-edit',
+          component: () => import('@/views/ComplaintFormView.vue'),
+          meta: { kind: 'clue' },
+        },
+        {
+          path: 'complaints',
+          name: 'complaints',
+          component: () => import('@/views/ComplaintsView.vue'),
+          meta: { kind: 'letter' },
+        },
+        {
+          path: 'complaints/new',
+          name: 'complaint-new',
+          component: () => import('@/views/ComplaintFormView.vue'),
+          meta: { kind: 'letter' },
+        },
         {
           path: 'complaints/:code/edit',
           name: 'complaint-edit',
           component: () => import('@/views/ComplaintFormView.vue'),
+          meta: { kind: 'letter' },
         },
         { path: 'dicts', name: 'dicts', component: () => import('@/views/DictView.vue') },
         { path: 'users', name: 'users', component: () => import('@/views/UsersView.vue'), meta: { admin: true } },

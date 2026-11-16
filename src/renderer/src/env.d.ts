@@ -21,6 +21,9 @@ interface Window {
       nextCode: () => Promise<AnyResult>
       save: (payload: { isNew: boolean; data: Record<string, string | null> }) => Promise<AnyResult>
       remove: (codes: string[]) => Promise<AnyResult>
+      clueOptions: () => Promise<AnyResult>
+      letters: (clueCode: string) => Promise<AnyResult>
+      assign: (payload: { codes: string[]; clueCode: string | null }) => Promise<AnyResult>
       importExcel: () => Promise<AnyResult>
       print: (code: string) => Promise<AnyResult>
       printList: (filter: unknown) => Promise<AnyResult>
@@ -59,7 +62,7 @@ interface Window {
       groups: (field: 'ClueSource' | 'DisposeForm' | 'UndertakeDept') => Promise<AnyResult>
     }
     exports: {
-      complaints: (codes?: string[]) => Promise<AnyResult>
+      complaints: (payload?: string[] | { codes?: string[]; category?: string }) => Promise<AnyResult>
       logs: (filter: unknown) => Promise<AnyResult>
       stats: () => Promise<AnyResult>
     }

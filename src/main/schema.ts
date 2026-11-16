@@ -1,4 +1,5 @@
 import type { SqliteHandle } from './sqlite-driver'
+import { hashPassword } from './password'
 import seed from './seed/petition-seed.json'
 
 export const TABLE_DDL: string[] = [
@@ -22,6 +23,7 @@ export const TABLE_DDL: string[] = [
     NewCode TEXT,
     CategoryCode TEXT,
     Category TEXT,
+    ParentCode TEXT,
     ClueSource TEXT,
     ReceiveTime DATETIME NOT NULL,
     TargetType TEXT,
@@ -188,7 +190,8 @@ export function seedIfEmpty(conn: SqliteHandle): void {
     conn.transaction(() => {
       for (const [table, rows] of INSERT_ORDER) {
         for (const row of rows as SeedRow[]) {
-          insertRow(conn, table, row)
+          const data = table === 'Users' ? { ...row, Password: hashPassword(String(row.Password ?? '')) } : row
+          insertRow(conn, table, data)
         }
       }
     })

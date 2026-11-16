@@ -68,9 +68,9 @@ function joinDepts(className: string, raw: unknown): string {
     .join('、')
 }
 
-export function buildComplaintWorkbook(codes?: string[]): Buffer {
+export function buildComplaintWorkbook(codes?: string[], category?: string): Buffer {
   const translate = translator()
-  const rows = complaintsForExport(codes).map((row: ComplaintRow) => ({
+  const rows = complaintsForExport(codes, category).map((row: ComplaintRow) => ({
     原始编号: row.OriginalCode,
     线索编号: row.NewCode,
     信访编号: row.CategoryCode,

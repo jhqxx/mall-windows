@@ -2,11 +2,17 @@
   <div class="page">
     <header class="page-head">
       <div>
-        <h1 class="page-title">信访管理</h1>
-        <p class="page-subtitle">共 {{ total }} 条记录，当前第 {{ page }} 页</p>
+        <h1 class="page-title">{{ isClue ? '线索管理' : '信访管理' }}</h1>
+        <p class="page-subtitle">
+          共 {{ total }} 条记录，当前第 {{ page }} 页
+          <span v-if="!isClue && filter.clue" class="scope-chip">
+            仅看线索 {{ filter.clue }}
+            <el-button link type="primary" size="small" @click="clearClueScope">取消</el-button>
+          </span>
+        </p>
       </div>
       <div class="head-actions">
-        <el-button type="primary" :icon="Plus" @click="openNew">新增信访</el-button>
+        <el-button type="primary" :icon="Plus" @click="openNew">{{ isClue ? '新增线索' : '登记信访件' }}</el-button>
         <el-button :icon="Edit" :disabled="selection.length !== 1" @click="openEdit(selection[0])">编辑</el-button>
         <el-button :icon="Delete" :disabled="!selection.length" @click="removeSelected">批量删除</el-button>
         <el-dropdown trigger="click" @command="onExport">
@@ -20,19 +26,21 @@
             </el-dropdown-menu>
           </template>
         </el-dropdown>
-        <el-button :icon="Upload" @click="importExcel">导入 Excel</el-button>
-        <el-button :icon="Printer" @click="printList">打印台账</el-button>
+        <el-button v-if="!isClue" :icon="Upload" @click="importExcel">导入 Excel</el-button>
+        <el-button v-if="!isClue" :icon="Printer" @click="printList">打印台账</el-button>
+        <el-button v-else :icon="Printer" @click="printList">打印台账</el-button>
       </div>
     </header>
 
     <section class="filters">
-      <el-select v-model="filter.category" placeholder="信访类别" clearable class="w-140" @change="reload">
-        <el-option v-for="o in categoryOptions" :key="o.value" :label="o.label" :value="o.value" />
+      <el-select v-if="!isClue" v-model="filter.parent" placeholder="线索归属" clearable class="w-140" @change="reload">
+        <el-option label="未归并" value="none" />
+        <el-option label="已归并" value="any" />
       </el-select>
       <el-select v-model="filter.disposeForm" placeholder="处置形态" clearable class="w-160" @change="reload">
         <el-option v-for="item in disposeOptions" :key="item.value" :label="item.label" :value="item.value" />
       </el-select>
-      <el-select v-model="filter.reportForm" placeholder="举报形式" clearable class="w-140" @change="reload">
+      <el-select v-if="!isClue" v-model="filter.reportForm" placeholder="举报形式" clearable class="w-140" @change="reload">
         <el-option label="实名" value="JB1001" />
         <el-option label="匿名" value="JB1002" />
       </el-select>
@@ -53,8 +61,8 @@
 
     <el-tabs v-model="filter.tab" class="tabs" @tab-change="reload">
       <el-tab-pane :label="`全部 (${tabs.all ?? 0})`" name="all" />
-      <el-tab-pane :label="`实名举报 (${tabs.real ?? 0})`" name="real" />
-      <el-tab-pane :label="`匿名举报 (${tabs.anonymous ?? 0})`" name="anonymous" />
+      <el-tab-pane v-if="!isClue" :label="`实名举报 (${tabs.real ?? 0})`" name="real" />
+      <el-tab-pane v-if="!isClue" :label="`匿名举报 (${tabs.anonymous ?? 0})`" name="anonymous" />
       <el-tab-pane :label="`办理中 (${tabs.processing ?? 0})`" name="processing" />
       <el-tab-pane :label="`已办结 (${tabs.completed ?? 0})`" name="completed" />
       <el-tab-pane :label="`已超期 (${tabs.overdue ?? 0})`" name="overdue" />
@@ -71,8 +79,13 @@
     >
       <el-table-column type="selection" width="46" fixed="left" />
       <el-table-column prop="OriginalCode" label="原始编号" width="118" class-name="cell-mono" fixed="left" />
-      <el-table-column label="类别" width="80">
-        <template #default="{ row }">{{ categoryLabel(row.Category) }}</template>
+      <el-table-column v-if="!isClue" label="所属线索" width="120" class-name="cell-mono">
+        <template #default="{ row }">
+          <el-button v-if="row.ParentCode" link type="primary" @click="focusClue(row.ParentCode)">
+            {{ row.ParentCode }}
+          </el-button>
+          <span v-else class="muted">未归并</span>
+        </template>
       </el-table-column>
       <el-table-column label="被反映对象" width="150" show-overflow-tooltip>
         <template #default="{ row }">
@@ -83,6 +96,19 @@
       <el-table-column prop="ProblemSummary" label="问题摘要" min-width="160" show-overflow-tooltip />
       <el-table-column label="线索来源" width="100" show-overflow-tooltip>
         <template #default="{ row }">{{ labelOf(clueLabelMap, row.ClueSource) }}</template>
+      </el-table-column>
+      <el-table-column v-if="isClue" label="信访件" width="78">
+        <template #default="{ row }">
+          <el-button
+            v-if="childCounts[row.OriginalCode]"
+            link
+            type="primary"
+            @click="focusLetters(row.OriginalCode)"
+          >
+            {{ childCounts[row.OriginalCode] }}
+          </el-button>
+          <span v-else class="muted">0</span>
+        </template>
       </el-table-column>
       <el-table-column prop="MainHandler" label="主办人" width="78" />
       <el-table-column label="办结" width="78">
@@ -95,10 +121,11 @@
       <el-table-column label="接收时间" width="150" class-name="cell-mono">
         <template #default="{ row }">{{ shortTime(row.ReceiveTime) }}</template>
       </el-table-column>
-      <el-table-column label="操作" width="120" fixed="right" class-name="cell-actions">
+      <el-table-column label="操作" :width="isClue ? 120 : 156" fixed="right" class-name="cell-actions">
         <template #default="{ row }">
           <el-button link type="primary" @click="openDetail(row)">查看</el-button>
           <el-button link @click="openEdit(row)">编辑</el-button>
+          <el-button v-if="!isClue" link @click="openAssign(row)">归并</el-button>
         </template>
       </el-table-column>
       <template #empty>
@@ -118,10 +145,10 @@
       />
     </div>
 
-    <el-drawer v-model="detailVisible" title="信访详情" size="46%">
+    <el-drawer v-model="detailVisible" :title="isClue ? '线索详情' : '信访详情'" size="46%">
       <template #header>
         <div class="drawer-head">
-          <span class="drawer-title">信访详情</span>
+          <span class="drawer-title">{{ isClue ? '线索详情' : '信访详情' }}</span>
           <el-button v-if="detail" size="small" :icon="Printer" @click="printOne">打印</el-button>
         </div>
       </template>
@@ -137,19 +164,41 @@
         </section>
       </div>
     </el-drawer>
+
+    <el-dialog v-model="assignVisible" title="归并到线索" width="32rem">
+      <p class="assign-hint">已选 {{ assignCodes.length }} 件信访件。选择一条问题线索作为主单。</p>
+      <el-select v-model="assignClue" filterable clearable placeholder="搜索编号 / 被反映人 / 摘要" class="assign-select">
+        <el-option v-for="item in clueChoices" :key="item.code" :label="`${item.code} · ${item.name}`" :value="item.code">
+          <span class="mono">{{ item.code }}</span>
+          <span class="assign-summary">{{ item.name }} {{ item.summary ? '· ' + item.summary : '' }}</span>
+        </el-option>
+      </el-select>
+      <template #footer>
+        <el-button @click="assignVisible = false">取消</el-button>
+        <el-button :disabled="!assignClue" type="primary" @click="confirmAssign">归并</el-button>
+        <el-button @click="detachAssign">移出线索</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowDown, Delete, Download, Edit, Plus, Printer, RefreshLeft, Search, Upload } from '@element-plus/icons-vue'
 
 type Row = Record<string, any>
 
 const router = useRouter()
+const route = useRoute()
+const isClue = computed(() => route.meta.kind === 'clue')
 const rows = ref<Row[]>([])
+const childCounts = ref<Record<string, number>>({})
+const clueChoices = ref<Array<{ code: string; name: string; summary: string }>>([])
+const assignVisible = ref(false)
+const assignCodes = ref<string[]>([])
+const assignClue = ref('')
 const total = ref(0)
 const page = ref(1)
 const pageSize = ref(20)
@@ -162,7 +211,8 @@ const detail = ref<Row | null>(null)
 
 const filter = reactive({
   tab: 'all',
-  category: '',
+  parent: '',
+  clue: '',
   disposeForm: '',
   reportForm: '',
   isCompleted: '',
@@ -249,6 +299,7 @@ const detailGroups = computed(() => {
 async function load(): Promise<void> {
   const res = await window.api.complaints.list({
     ...filter,
+    category: isClue.value ? '0' : '1',
     page: page.value,
     pageSize: pageSize.value,
   })
@@ -259,6 +310,7 @@ async function load(): Promise<void> {
   rows.value = res.data.rows
   total.value = res.data.total
   tabs.value = res.data.tabs
+  childCounts.value = res.data.childCounts ?? {}
 }
 
 function reload(): void {
@@ -268,7 +320,7 @@ function reload(): void {
 
 function reset(): void {
   filter.tab = 'all'
-  filter.category = ''
+  filter.parent = ''
   filter.disposeForm = ''
   filter.reportForm = ''
   filter.isCompleted = ''
@@ -282,12 +334,61 @@ function onSelectionChange(list: Row[]): void {
 }
 
 function openNew(): void {
-  router.push('/complaints/new')
+  const base = isClue.value ? '/clues/new' : '/complaints/new'
+  router.push(filter.clue && !isClue.value ? `${base}?clue=${encodeURIComponent(filter.clue)}` : base)
 }
 
 function openEdit(row: Row): void {
   if (!row) return
-  router.push(`/complaints/${encodeURIComponent(row.OriginalCode)}/edit`)
+  const base = isClue.value ? '/clues' : '/complaints'
+  router.push(`${base}/${encodeURIComponent(row.OriginalCode)}/edit`)
+}
+
+function focusLetters(clueCode: string): void {
+  router.push({ path: '/complaints', query: { clue: clueCode } })
+}
+
+function focusClue(clueCode: string): void {
+  router.push({ path: '/clues', query: { code: clueCode } })
+}
+
+function clearClueScope(): void {
+  filter.clue = ''
+  router.replace('/complaints')
+  reload()
+}
+
+async function openAssign(row: Row): Promise<void> {
+  assignCodes.value = row ? [String(row.OriginalCode)] : selection.value.map((item) => String(item.OriginalCode))
+  if (!assignCodes.value.length) return
+  if (!clueChoices.value.length) {
+    const res = await window.api.complaints.clueOptions()
+    if (res?.ok) clueChoices.value = res.data
+  }
+  assignClue.value = (row?.ParentCode as string) ?? ''
+  assignVisible.value = true
+}
+
+async function confirmAssign(): Promise<void> {
+  const res = await window.api.complaints.assign({ codes: assignCodes.value, clueCode: assignClue.value })
+  if (!res?.ok) {
+    ElMessage.error(res?.error ?? '归并失败')
+    return
+  }
+  ElMessage.success(`已归并 ${res.data} 件信访件`)
+  assignVisible.value = false
+  load()
+}
+
+async function detachAssign(): Promise<void> {
+  const res = await window.api.complaints.assign({ codes: assignCodes.value, clueCode: null })
+  if (!res?.ok) {
+    ElMessage.error(res?.error ?? '移出失败')
+    return
+  }
+  ElMessage.success(`已移出 ${res.data} 件信访件`)
+  assignVisible.value = false
+  load()
 }
 
 async function openDetail(row: Row): Promise<void> {
@@ -336,7 +437,7 @@ async function exportRows(): Promise<void> {
 }
 
 async function exportAll(): Promise<void> {
-  const res = await window.api.exports.complaints()
+  const res = await window.api.exports.complaints({ category: isClue.value ? '0' : '1' })
   notifyExport(res)
 }
 
@@ -372,6 +473,16 @@ function shortTime(value: string | null): string {
   return String(value).slice(0, 19)
 }
 
+watch(
+  () => route.fullPath,
+  () => {
+    filter.clue = typeof route.query.clue === 'string' ? route.query.clue : ''
+    filter.tab = 'all'
+    page.value = 1
+    load()
+  },
+)
+
 onMounted(async () => {
   const [dispose, disposeLabels, category, categoryLabels, targetTypes, clueLabels] = await Promise.all([
     window.api.dict.options('处置形态'),
@@ -387,6 +498,7 @@ onMounted(async () => {
   if (categoryLabels?.ok && Object.keys(categoryLabels.data).length) categoryMap.value = categoryLabels.data
   if (targetTypes?.ok && Object.keys(targetTypes.data).length) targetTypeMap.value = targetTypes.data
   if (clueLabels?.ok) clueLabelMap.value = clueLabels.data
+  filter.clue = typeof route.query.clue === 'string' ? route.query.clue : ''
   load()
 })
 </script>
@@ -501,6 +613,32 @@ onMounted(async () => {
   font-weight: 600;
   color: var(--ink);
 }
+.scope-chip {
+  margin-left: 0.5rem;
+  padding: 0.0625rem 0.375rem;
+  border: 1px solid var(--rule-2);
+  border-radius: 0.25rem;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: var(--ink-2);
+}
+
+.assign-hint {
+  margin: 0 0 0.75rem;
+  font-size: 0.8125rem;
+  color: var(--ink-3);
+}
+
+.assign-select {
+  width: 100%;
+}
+
+.assign-summary {
+  margin-left: 0.5rem;
+  color: var(--ink-3);
+  font-size: 0.8125rem;
+}
+
 .cell-sub {
   margin-left: 0.375rem;
   font-size: 0.6875rem;

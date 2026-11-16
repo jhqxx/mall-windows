@@ -14,6 +14,9 @@ const api = {
     nextCode: () => invoke('complaint:nextCode'),
     save: (payload: { isNew: boolean; data: Record<string, string | null> }) => invoke('complaint:save', payload),
     remove: (codes: string[]) => invoke('complaint:delete', codes),
+    clueOptions: () => invoke('complaint:clueOptions'),
+    letters: (clueCode: string) => invoke('complaint:letters', clueCode),
+    assign: (payload: { codes: string[]; clueCode: string | null }) => invoke('complaint:assign', payload),
     importExcel: () => invoke('import:complaints'),
     print: (code: string) => invoke('print:complaint', code),
     printList: (filter: unknown) => invoke('print:list', filter),
@@ -52,7 +55,7 @@ const api = {
     groups: (field: 'ClueSource' | 'DisposeForm' | 'UndertakeDept') => invoke('stats:groups', field),
   },
   exports: {
-    complaints: (codes?: string[]) => invoke('export:complaints', codes),
+    complaints: (payload?: string[] | { codes?: string[]; category?: string }) => invoke('export:complaints', payload),
     logs: (filter: unknown) => invoke('export:logs', filter),
     stats: () => invoke('export:stats'),
   },
