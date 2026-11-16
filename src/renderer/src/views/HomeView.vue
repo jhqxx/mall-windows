@@ -46,9 +46,14 @@
         <el-table :data="clueSources" size="small" height="300">
           <el-table-column prop="name" label="线索来源" min-width="130" />
           <el-table-column prop="count" label="数量" width="80" align="right" />
-          <el-table-column label="占比" width="90" align="right">
+          <el-table-column label="占比" width="150">
             <template #default="{ row }">
-              <span class="mono">{{ row.percentage.toFixed(1) }}%</span>
+              <div class="share">
+                <span class="share-track">
+                  <span class="share-fill" :style="{ width: barWidth(row.percentage) }" />
+                </span>
+                <span class="mono share-num">{{ row.percentage.toFixed(1) }}%</span>
+              </div>
             </template>
           </el-table-column>
         </el-table>
@@ -62,9 +67,14 @@
         <el-table :data="disposeForms" size="small" height="300">
           <el-table-column prop="name" label="处置形态" min-width="130" />
           <el-table-column prop="count" label="数量" width="80" align="right" />
-          <el-table-column label="占比" width="90" align="right">
+          <el-table-column label="占比" width="150">
             <template #default="{ row }">
-              <span class="mono">{{ row.percentage.toFixed(1) }}%</span>
+              <div class="share">
+                <span class="share-track">
+                  <span class="share-fill" :style="{ width: barWidth(row.percentage) }" />
+                </span>
+                <span class="mono share-num">{{ row.percentage.toFixed(1) }}%</span>
+              </div>
             </template>
           </el-table-column>
         </el-table>
@@ -149,6 +159,15 @@ async function exportReport(): Promise<void> {
     return
   }
   ElMessage.success(res.data ? `已导出到 ${res.data}` : '已取消导出')
+}
+
+function barWidth(percentage: number): string {
+  const peak = Math.max(
+    1,
+    ...clueSources.value.map((row) => row.percentage),
+    ...disposeForms.value.map((row) => row.percentage),
+  )
+  return `${Math.max(2, Math.round((percentage / peak) * 100))}%`
 }
 
 onMounted(load)
@@ -264,5 +283,29 @@ onMounted(load)
   .panel.wide {
     grid-column: auto;
   }
+}
+
+.share {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.share-track {
+  flex: 1;
+  height: 0.375rem;
+  background: var(--rule);
+  border-radius: 0.125rem;
+  overflow: hidden;
+}
+.share-fill {
+  display: block;
+  height: 100%;
+  background: var(--harbor);
+}
+.share-num {
+  min-width: 3rem;
+  text-align: right;
+  font-size: 0.8125rem;
+  color: var(--ink-2);
 }
 </style>
