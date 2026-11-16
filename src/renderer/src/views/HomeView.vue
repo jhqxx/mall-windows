@@ -46,13 +46,13 @@
         <el-table :data="clueSources" size="small" height="300">
           <el-table-column prop="name" label="线索来源" min-width="130" />
           <el-table-column prop="count" label="数量" width="80" align="right" />
-          <el-table-column label="占比" width="150">
+          <el-table-column label="占比" min-width="170">
             <template #default="{ row }">
               <div class="share">
+                <span class="mono share-num">{{ pct(row.percentage) }}</span>
                 <span class="share-track">
                   <span class="share-fill" :style="{ width: barWidth(row.percentage) }" />
                 </span>
-                <span class="mono share-num">{{ row.percentage.toFixed(1) }}%</span>
               </div>
             </template>
           </el-table-column>
@@ -67,13 +67,13 @@
         <el-table :data="disposeForms" size="small" height="300">
           <el-table-column prop="name" label="处置形态" min-width="130" />
           <el-table-column prop="count" label="数量" width="80" align="right" />
-          <el-table-column label="占比" width="150">
+          <el-table-column label="占比" min-width="170">
             <template #default="{ row }">
               <div class="share">
+                <span class="mono share-num">{{ pct(row.percentage) }}</span>
                 <span class="share-track">
                   <span class="share-fill" :style="{ width: barWidth(row.percentage) }" />
                 </span>
-                <span class="mono share-num">{{ row.percentage.toFixed(1) }}%</span>
               </div>
             </template>
           </el-table-column>
@@ -159,6 +159,10 @@ async function exportReport(): Promise<void> {
     return
   }
   ElMessage.success(res.data ? `已导出到 ${res.data}` : '已取消导出')
+}
+
+function pct(percentage: number): string {
+  return `${Number(percentage ?? 0).toFixed(1)}%`
 }
 
 function barWidth(percentage: number): string {
@@ -303,8 +307,9 @@ onMounted(load)
   background: var(--harbor);
 }
 .share-num {
-  min-width: 3rem;
+  flex: 0 0 3.25rem;
   text-align: right;
+  white-space: nowrap;
   font-size: 0.8125rem;
   color: var(--ink-2);
 }

@@ -21,7 +21,7 @@
       </nav>
 
       <div class="sidebar-foot mono">
-        <span>v{{ version }}</span>
+        <span v-if="version">v{{ version }}</span>
         <span class="foot-platform">{{ platformLabel }}</span>
       </div>
     </aside>
@@ -70,7 +70,7 @@ import logoMark from '@/assets/logo-mark.png'
 
 const route = useRoute()
 const router = useRouter()
-const version = ref('0.1.0')
+const version = ref('')
 const platform = ref('')
 
 const navItems = computed(() =>
