@@ -48,6 +48,11 @@ const api = {
     monthly: () => invoke('stats:monthly'),
     groups: (field: 'ClueSource' | 'DisposeForm' | 'UndertakeDept') => invoke('stats:groups', field),
   },
+  exports: {
+    complaints: (codes?: string[]) => invoke('export:complaints', codes),
+    logs: (filter: unknown) => invoke('export:logs', filter),
+    stats: () => invoke('export:stats'),
+  },
   app: {
     meta: () => invoke('app:meta'),
   },

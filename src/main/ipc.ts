@@ -1,5 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import fs from 'node:fs'
+import { buildComplaintWorkbook, buildLogWorkbook, buildStatsWorkbook } from './excel'
 import os from 'node:os'
 import path from 'node:path'
 import {
@@ -491,6 +492,63 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
   ipcMain.handle('stats:groups', (_e, field: 'ClueSource' | 'DisposeForm' | 'UndertakeDept') => {
     requireUser()
     return ok(groupStats(field))
+  })
+
+  async function saveWorkbook(
+    filename: string,
+    buffer: Buffer,
+    meta: { module: string; content: string },
+  ): Promise<{ ok: true; data: string | null }> {
+    const user = requireUser()
+    const win = getWindow()
+    const options = {
+      defaultPath: path.join(app.getPath('downloads'), filename),
+      filters: [{ name: 'Excel 工作簿', extensions: ['xlsx'] }],
+    }
+    const picked = win ? await dialog.showSaveDialog(win, options) : await dialog.showSaveDialog(options)
+    if (picked.canceled || !picked.filePath) return ok(null)
+    fs.writeFileSync(picked.filePath, buffer)
+    addLog({
+      userName: user.username,
+      userRealName: user.realName,
+      userRole: user.role,
+      operationType: '导出',
+      operationModule: meta.module,
+      operationContent: meta.content,
+      targetName: path.basename(picked.filePath),
+      ipAddress: localIp(),
+    })
+    return ok(picked.filePath)
+  }
+
+  const stamp = () => {
+    const d = new Date()
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`
+  }
+
+  ipcMain.handle('export:complaints', async (_e, codes?: string[]) => {
+    const buffer = buildComplaintWorkbook(codes)
+    return saveWorkbook(`信访数据-${stamp()}.xlsx`, buffer, {
+      module: '信访管理',
+      content: codes?.length ? `导出选中信访记录 ${codes.length} 条` : '导出全部信访记录',
+    })
+  })
+
+  ipcMain.handle('export:logs', async (_e, filter) => {
+    const buffer = buildLogWorkbook(filter ?? {})
+    return saveWorkbook(`操作日志-${stamp()}.xlsx`, buffer, {
+      module: '操作日志',
+      content: '导出操作日志',
+    })
+  })
+
+  ipcMain.handle('export:stats', async () => {
+    const buffer = buildStatsWorkbook()
+    return saveWorkbook(`信访统计报表-${stamp()}.xlsx`, buffer, {
+      module: '首页统计',
+      content: '导出统计报表',
+    })
   })
 
   ipcMain.handle('app:meta', () => ({

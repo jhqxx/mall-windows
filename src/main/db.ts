@@ -294,6 +294,22 @@ export function listComplaints(filter: ComplaintFilter): { rows: ComplaintRow[];
   return { rows, total }
 }
 
+export function complaintsForExport(codes?: string[]): ComplaintRow[] {
+  if (codes?.length) {
+    const params: Record<string, string> = {}
+    const holes = codes.map((code, index) => {
+      params[`c${index}`] = code
+      return `@c${index}`
+    })
+    return conn()
+      .prepare(`SELECT * FROM Complaint WHERE OriginalCode IN (${holes.join(',')}) ORDER BY ReceiveTime DESC, Id DESC`)
+      .all(params) as unknown as ComplaintRow[]
+  }
+  return conn()
+    .prepare('SELECT * FROM Complaint ORDER BY ReceiveTime DESC, Id DESC')
+    .all() as unknown as ComplaintRow[]
+}
+
 export function tabCounts(): Record<string, number> {
   const c = conn()
   const pick = (sql: string) => (c.prepare(sql).get() as { n: number }).n
@@ -595,7 +611,7 @@ export function addLog(entry: {
     })
 }
 
-export function listLogs(filter: LogFilter): { rows: LogRow[]; total: number } {
+function buildLogWhere(filter: LogFilter): { where: string; params: Record<string, string> } {
   const clauses: string[] = []
   const params: Record<string, string> = {}
   if (filter.module) {
@@ -615,7 +631,18 @@ export function listLogs(filter: LogFilter): { rows: LogRow[]; total: number } {
     clauses.push('(OperationContent LIKE @kw OR TargetName LIKE @kw OR TargetId LIKE @kw)')
     params.kw = `%${keyword}%`
   }
-  const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : ''
+  return { where: clauses.length ? `WHERE ${clauses.join(' AND ')}` : '', params }
+}
+
+export function logsForExport(filter: LogFilter): LogRow[] {
+  const { where, params } = buildLogWhere(filter)
+  return conn()
+    .prepare(`SELECT * FROM OperationLog ${where} ORDER BY OperationTime DESC, Id DESC`)
+    .all(params) as unknown as LogRow[]
+}
+
+export function listLogs(filter: LogFilter): { rows: LogRow[]; total: number } {
+  const { where, params } = buildLogWhere(filter)
   const pageSize = Math.max(1, Math.min(200, filter.pageSize ?? 20))
   const page = Math.max(1, filter.page ?? 1)
   const total = (

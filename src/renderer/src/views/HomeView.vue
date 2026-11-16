@@ -5,7 +5,10 @@
         <h1 class="page-title">首页统计</h1>
         <p class="page-subtitle">信访与问题线索总体办理情况</p>
       </div>
-      <el-button :icon="Refresh" @click="load">刷新</el-button>
+      <div class="head-actions">
+        <el-button :icon="Refresh" @click="load">刷新</el-button>
+        <el-button :icon="Download" @click="exportReport">导出报表</el-button>
+      </div>
     </header>
 
     <section class="cards">
@@ -72,7 +75,8 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { Refresh } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
+import { Download, Refresh } from '@element-plus/icons-vue'
 
 type Overview = {
   xfTotal: number
@@ -136,6 +140,15 @@ async function load(): Promise<void> {
   if (mo?.ok) monthly.value = mo.data
   if (clue?.ok) clueSources.value = clue.data
   if (dispose?.ok) disposeForms.value = dispose.data
+}
+
+async function exportReport(): Promise<void> {
+  const res = await window.api.exports.stats()
+  if (!res?.ok) {
+    ElMessage.error(res?.error ?? '导出失败')
+    return
+  }
+  ElMessage.success(res.data ? `已导出到 ${res.data}` : '已取消导出')
 }
 
 onMounted(load)

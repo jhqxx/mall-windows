@@ -19,6 +19,7 @@
         <el-input v-model="filter.keyword" placeholder="内容 / 对象" clearable class="w-52" @keyup.enter="reload" />
         <el-button type="primary" :icon="Search" @click="reload">查询</el-button>
         <el-button :icon="Refresh" @click="reset">重置</el-button>
+        <el-button :icon="Download" @click="exportLogs">导出Excel</el-button>
       </div>
 
       <el-table :data="rows" border stripe size="small">
@@ -59,7 +60,8 @@
 
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
-import { Refresh, Search } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
+import { Download, Refresh, Search } from '@element-plus/icons-vue'
 
 type LogRow = {
   Id: number
@@ -110,6 +112,15 @@ function reset(): void {
   filter.user = ''
   filter.keyword = ''
   reload()
+}
+
+async function exportLogs(): Promise<void> {
+  const res = await window.api.exports.logs({ ...filter })
+  if (!res?.ok) {
+    ElMessage.error(res?.error ?? '导出失败')
+    return
+  }
+  ElMessage.success(res.data ? `已导出到 ${res.data}` : '已取消导出')
 }
 
 onMounted(async () => {

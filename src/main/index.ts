@@ -55,10 +55,24 @@ function createWindow(): void {
 
 app.whenReady().then(() => {
   initDb()
+  if (process.env.MALL_TEST_HOOKS === '1') void exportFixtures()
   registerIpc(() => mainWindow)
   createWindow()
 
-  app.on('activate', () => {
+  async function exportFixtures(): Promise<void> {
+  const { mkdirSync, writeFileSync } = await import('node:fs')
+  const { join } = await import('node:path')
+  const { app: electronApp } = await import('electron')
+  const { buildComplaintWorkbook, buildLogWorkbook, buildStatsWorkbook } = await import('./excel')
+  const dir = join(electronApp.getPath('userData'), 'exports')
+  mkdirSync(dir, { recursive: true })
+  writeFileSync(join(dir, 'complaints.xlsx'), buildComplaintWorkbook())
+  writeFileSync(join(dir, 'logs.xlsx'), buildLogWorkbook({}))
+  writeFileSync(join(dir, 'stats.xlsx'), buildStatsWorkbook())
+  console.log('[test] export fixtures written to', dir)
+}
+
+app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
 })

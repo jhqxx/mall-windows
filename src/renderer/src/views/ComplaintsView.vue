@@ -9,6 +9,8 @@
         <el-button type="primary" :icon="Plus" @click="openNew">新增信访</el-button>
         <el-button :icon="Edit" :disabled="selection.length !== 1" @click="openEdit(selection[0])">编辑</el-button>
         <el-button :icon="Delete" :disabled="!selection.length" @click="removeSelected">批量删除</el-button>
+        <el-button :icon="Download" :disabled="!selection.length" @click="exportRows">导出选中</el-button>
+        <el-button :icon="Download" @click="exportAll">导出全部</el-button>
       </div>
     </header>
 
@@ -136,7 +138,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Delete, Edit, Plus, RefreshLeft, Search } from '@element-plus/icons-vue'
+import { Delete, Download, Edit, Plus, RefreshLeft, Search } from '@element-plus/icons-vue'
 
 type Row = Record<string, any>
 
@@ -288,6 +290,25 @@ async function openDetail(row: Row): Promise<void> {
   }
   detail.value = res.data
   detailVisible.value = true
+}
+
+async function exportRows(): Promise<void> {
+  if (!selection.value.length) return
+  const res = await window.api.exports.complaints(selection.value.map((row) => row.OriginalCode))
+  notifyExport(res)
+}
+
+async function exportAll(): Promise<void> {
+  const res = await window.api.exports.complaints()
+  notifyExport(res)
+}
+
+function notifyExport(res: { ok: boolean; data?: string | null; error?: string }): void {
+  if (!res?.ok) {
+    ElMessage.error(res?.error ?? '导出失败')
+    return
+  }
+  ElMessage.success(res.data ? `已导出到 ${res.data}` : '已取消导出')
 }
 
 async function removeSelected(): Promise<void> {

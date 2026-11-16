@@ -55,6 +55,11 @@ interface Window {
       monthly: () => Promise<AnyResult>
       groups: (field: 'ClueSource' | 'DisposeForm' | 'UndertakeDept') => Promise<AnyResult>
     }
+    exports: {
+      complaints: (codes?: string[]) => Promise<AnyResult>
+      logs: (filter: unknown) => Promise<AnyResult>
+      stats: () => Promise<AnyResult>
+    }
     app: {
       meta: () => Promise<AnyResult>
     }
