@@ -19,7 +19,28 @@
         <h2 class="block-title">编号信息</h2>
         <div class="grid">
           <el-form-item label="原始编号"><el-input v-model="form.OriginalCode" disabled /></el-form-item>
-          <el-form-item label="线索编号"><el-input v-model="form.NewCode" placeholder="选填" /></el-form-item>
+          <el-form-item v-if="isClue" label="线索编号">
+            <el-input v-model="form.NewCode" placeholder="选填" />
+          </el-form-item>
+          <el-form-item v-else label="线索编号">
+            <el-select
+              v-model="form.NewCode"
+              class="fill"
+              clearable
+              filterable
+              allow-create
+              default-first-option
+              placeholder="从线索带入 / 手动填写"
+              @change="onClueCodePicked"
+            >
+              <el-option
+                v-for="item in clueChoices"
+                :key="item.code"
+                :label="`${item.code} · ${item.name || item.summary}`"
+                :value="item.code"
+              />
+            </el-select>
+          </el-form-item>
           <el-form-item label="信访编号"><el-input v-model="form.CategoryCode" placeholder="选填" /></el-form-item>
         </div>
       </section>
@@ -31,7 +52,7 @@
             <el-input :model-value="categoryName" disabled />
           </el-form-item>
           <el-form-item v-if="!isClue" label="所属线索">
-            <el-select v-model="form.ParentCode" class="fill" clearable filterable placeholder="未归并">
+            <el-select v-model="form.ParentCode" class="fill" clearable filterable placeholder="未归并" @change="onParentPicked">
               <el-option
                 v-for="item in clueChoices"
                 :key="item.code"
@@ -296,6 +317,17 @@ const pageTitle = computed(() => {
 })
 const categoryName = computed(() => (isClue.value ? '问题线索' : '信访件'))
 const clueChoices = ref<Array<{ code: string; name: string; summary: string }>>([])
+
+function onClueCodePicked(code: string): void {
+  if (!code) return
+  const hit = clueChoices.value.find((item) => item.code === code)
+  if (hit) form.ParentCode = hit.code
+}
+
+function onParentPicked(code: string): void {
+  if (!code) return
+  if (!form.NewCode || clueChoices.value.some((item) => item.code === form.NewCode)) form.NewCode = code
+}
 const isUnit = computed(() => form.TargetType === 'ORG')
 
 const form = reactive<Record<string, any>>({

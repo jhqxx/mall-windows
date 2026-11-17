@@ -218,6 +218,19 @@
 
     <el-drawer v-model="linkedVisible" :title="linkedTitle" size="46%" append-to-body>
       <div v-if="linked" class="detail">
+        <section v-if="linkedKind === 'letter' && linked.ParentCode" class="linked">
+          <h3>所属线索</h3>
+          <p class="linked-row">
+            <el-button link type="primary" class="mono" @click="openLinked(linked.ParentCode, 'clue')">
+              {{ linked.ParentCode }}
+            </el-button>
+            <span class="linked-hint">点编号查看线索详情</span>
+          </p>
+        </section>
+        <section v-if="linkedKind === 'clue'" class="linked">
+          <h3>关联信访件（{{ related.length }}）</h3>
+          <p v-if="!related.length" class="linked-hint">这条线索下还没有归并的信访件</p>
+        </section>
         <section v-for="group in linkedGroups" :key="group.title">
           <h3>{{ group.title }}</h3>
           <dl>
@@ -318,6 +331,12 @@ const categoryMap = ref<Record<string, string>>({ '0': '问题线索', '1': '信
 const targetTypeMap = ref<Record<string, string>>({ ORG: '单位', IND: '个人' })
 const reportFormMap: Record<string, string> = { JB1001: '实名', JB1002: '匿名' }
 const clueLabelMap = ref<Record<string, string>>({})
+const dictMaps = ref<Record<string, Record<string, string>>>({})
+const dictLabel = (className: string, value: unknown) => {
+  if (value == null || value === '') return ''
+  const map = dictMaps.value[className]
+  return map?.[String(value)] ?? String(value)
+}
 
 const categoryLabel = (v: string) => categoryMap.value[v] ?? v ?? '—'
 const targetTypeLabel = (v: string) => targetTypeMap.value[v] ?? v ?? '—'
@@ -337,16 +356,16 @@ function buildGroups(row: Record<string, any>) {
     ]),
     group('基本信息', [
       ['信访类别', categoryLabel(row.Category)],
-      ['线索来源', row.ClueSource],
+      ['线索来源', dictLabel('线索来源', row.ClueSource)],
       ['接收时间', shortTime(row.ReceiveTime)],
     ]),
     group('被反映人', [
       ['类型', targetTypeLabel(row.TargetType)],
       ['姓名', row.TargetName],
-      ['性别', row.Gender],
+      ['性别', dictLabel('性别', row.Gender)],
       ['单位职务', row.TargetPost],
-      ['职级', row.TargetRank],
-      ['政治面貌', row.PoliticalStatus],
+      ['职级', dictLabel('职位层级', row.TargetRank)],
+      ['政治面貌', dictLabel('政治面貌', row.PoliticalStatus)],
       ['单位名称', row.OrganizationName],
       ['联系方式', row.ContactPhone],
       ['联系地址', row.ContactAddress],
@@ -361,17 +380,17 @@ function buildGroups(row: Record<string, any>) {
       ['分办时间', row.AssignTime],
       ['分办部室', row.AssignDept],
       ['承办部室', row.UndertakeDept],
-      ['承办形式', row.UndertakeForm],
+      ['承办形式', dictLabel('承办形式', row.UndertakeForm)],
     ]),
     group('处置信息', [
       ['处置时间', row.DisposeTime],
-      ['处置方式', row.DisposeMethod],
+      ['处置方式', dictLabel('处置方式', row.DisposeMethod)],
       ['应办结时间', row.Deadline],
       ['处置进度', row.DisposeProgress],
     ]),
     group('处置结果', [
       ['处置形态', labelOf(disposeLabelMap.value, row.DisposeForm)],
-      ['处置结果', row.DisposeResult],
+      ['处置结果', dictLabel('处置（核实）结果', row.DisposeResult)],
       ['是否办结', row.IsCompleted === 'BJ1001' ? '是' : '否'],
       ['办结时间', row.CompleteTime],
     ]),
@@ -381,8 +400,8 @@ function buildGroups(row: Record<string, any>) {
       ['主办人', row.MainHandler],
       ['协办人', row.AssistantHandler],
       ['审核人', row.AuditHandler],
-      ['领导签批', row.LeaderApproval],
-      ['签批情况', row.ApprovalStatus],
+      ['领导签批', dictLabel('领导签批', row.LeaderApproval)],
+      ['签批情况', dictLabel('签批情况', row.ApprovalStatus)],
       ['实名反馈', row.RealNameReport],
       ['备注', row.Remark],
     ]),
@@ -636,14 +655,22 @@ watch(
 )
 
 onMounted(async () => {
-  const [dispose, disposeLabels, category, categoryLabels, targetTypes, clueLabels] = await Promise.all([
+  const classes = ['线索来源', '职位层级', '政治面貌', '性别', '承办形式', '处置方式', '处置（核实）结果', '领导签批', '签批情况', '分办部室或片区', '承办部室或片区']
+  const [dispose, disposeLabels, category, categoryLabels, targetTypes, clueLabels, ...labelSets] = await Promise.all([
     window.api.dict.options('处置形态'),
     window.api.dict.labels('处置形态'),
     window.api.dict.options('信访类别'),
     window.api.dict.labels('信访类别'),
     window.api.dict.labels('被反映人类型'),
     window.api.dict.labels('线索来源'),
+    ...classes.map((name) => window.api.dict.labels(name)),
   ])
+  const maps: Record<string, Record<string, string>> = {}
+  classes.forEach((name, index) => {
+    const res = labelSets[index]
+    if (res?.ok) maps[name] = res.data
+  })
+  dictMaps.value = maps
   if (dispose?.ok) disposeOptions.value = dispose.data
   if (disposeLabels?.ok) disposeLabelMap.value = disposeLabels.data
   if (category?.ok) categoryOptions.value = category.data
